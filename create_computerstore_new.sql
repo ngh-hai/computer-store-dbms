@@ -105,38 +105,15 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: manufacturer; Type: TABLE; Schema: brand; Owner: postgres
+-- Name: brands; Type: TABLE; Schema: brand; Owner: postgres
 --
 
-CREATE TABLE brand.manufacturer (
-    manu_id integer NOT NULL,
-    manu_name character varying(255) NOT NULL
+CREATE TABLE brand.brands (
+    brand_name character varying(255) NOT NULL
 );
 
 
-ALTER TABLE brand.manufacturer OWNER TO postgres;
-
---
--- Name: manufacturer_manu_id_seq; Type: SEQUENCE; Schema: brand; Owner: postgres
---
-
-CREATE SEQUENCE brand.manufacturer_manu_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE brand.manufacturer_manu_id_seq OWNER TO postgres;
-
---
--- Name: manufacturer_manu_id_seq; Type: SEQUENCE OWNED BY; Schema: brand; Owner: postgres
---
-
-ALTER SEQUENCE brand.manufacturer_manu_id_seq OWNED BY brand.manufacturer.manu_id;
-
+ALTER TABLE brand.brands OWNER TO postgres;
 
 --
 -- Name: customers; Type: TABLE; Schema: customer; Owner: postgres
@@ -183,13 +160,13 @@ CREATE TABLE employee.employees (
     phone bigint NOT NULL,
     active boolean DEFAULT false NOT NULL,
     working_branch_id integer,
-    role_id integer NOT NULL,
+    role character varying(255) NOT NULL,
     username character varying(50),
     password character varying(50),
     salary integer NOT NULL,
     CONSTRAINT check_is_working CHECK (
 CASE
-    WHEN (active = true) THEN ((working_branch_id IS NOT NULL) AND (role_id IS NOT NULL) AND (username IS NOT NULL) AND (password IS NOT NULL))
+    WHEN (active = true) THEN ((working_branch_id IS NOT NULL) AND (role IS NOT NULL) AND (username IS NOT NULL) AND (password IS NOT NULL))
     ELSE NULL::boolean
 END),
     CONSTRAINT check_salary CHECK ((salary > 0))
@@ -240,34 +217,11 @@ ALTER SEQUENCE employee.employees_employee_id_seq OWNED BY employee.employees.em
 --
 
 CREATE TABLE employee.roles (
-    role_id integer NOT NULL,
-    role_name character varying(50) NOT NULL
+    role_name character varying(255) NOT NULL
 );
 
 
 ALTER TABLE employee.roles OWNER TO postgres;
-
---
--- Name: roles_role_id_seq; Type: SEQUENCE; Schema: employee; Owner: postgres
---
-
-CREATE SEQUENCE employee.roles_role_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE employee.roles_role_id_seq OWNER TO postgres;
-
---
--- Name: roles_role_id_seq; Type: SEQUENCE OWNED BY; Schema: employee; Owner: postgres
---
-
-ALTER SEQUENCE employee.roles_role_id_seq OWNED BY employee.roles.role_id;
-
 
 --
 -- Name: orders; Type: TABLE; Schema: order; Owner: postgres
@@ -363,7 +317,7 @@ CREATE TABLE product.general_specs (
     spec_type character varying(255) NOT NULL,
     spec_value integer NOT NULL,
     description integer,
-    product_cate_id integer NOT NULL,
+    product_category character varying(255) NOT NULL,
     spec_id integer NOT NULL
 );
 
@@ -397,34 +351,11 @@ ALTER SEQUENCE product.general_specs_spec_id_seq OWNED BY product.general_specs.
 --
 
 CREATE TABLE product.product_category (
-    cate_id integer NOT NULL,
-    cate_name character varying(255) NOT NULL
+    category_name character varying(255) NOT NULL
 );
 
 
 ALTER TABLE product.product_category OWNER TO postgres;
-
---
--- Name: product_category_cate_id_seq; Type: SEQUENCE; Schema: product; Owner: postgres
---
-
-CREATE SEQUENCE product.product_category_cate_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE product.product_category_cate_id_seq OWNER TO postgres;
-
---
--- Name: product_category_cate_id_seq; Type: SEQUENCE OWNED BY; Schema: product; Owner: postgres
---
-
-ALTER SEQUENCE product.product_category_cate_id_seq OWNED BY product.product_category.cate_id;
-
 
 --
 -- Name: product_instance; Type: TABLE; Schema: product; Owner: postgres
@@ -474,9 +405,9 @@ ALTER TABLE product.product_specs OWNER TO postgres;
 
 CREATE TABLE product.products (
     prod_id integer NOT NULL,
-    prod_brand_id integer NOT NULL,
+    prod_brand_name character varying(255) NOT NULL,
     prod_model_name character varying(255) NOT NULL,
-    prod_category_id integer NOT NULL,
+    prod_category_name character varying(255) NOT NULL,
     price integer NOT NULL,
     CONSTRAINT check_valid_price CHECK ((price > 0))
 );
@@ -563,24 +494,10 @@ ALTER SEQUENCE store.storebranch_branch_id_seq OWNED BY store.store_branch.branc
 
 
 --
--- Name: manufacturer manu_id; Type: DEFAULT; Schema: brand; Owner: postgres
---
-
-ALTER TABLE ONLY brand.manufacturer ALTER COLUMN manu_id SET DEFAULT nextval('brand.manufacturer_manu_id_seq'::regclass);
-
-
---
 -- Name: employees employee_id; Type: DEFAULT; Schema: employee; Owner: postgres
 --
 
 ALTER TABLE ONLY employee.employees ALTER COLUMN employee_id SET DEFAULT nextval('employee.employees_employee_id_seq'::regclass);
-
-
---
--- Name: roles role_id; Type: DEFAULT; Schema: employee; Owner: postgres
---
-
-ALTER TABLE ONLY employee.roles ALTER COLUMN role_id SET DEFAULT nextval('employee.roles_role_id_seq'::regclass);
 
 
 --
@@ -598,13 +515,6 @@ ALTER TABLE ONLY product.general_specs ALTER COLUMN spec_id SET DEFAULT nextval(
 
 
 --
--- Name: product_category cate_id; Type: DEFAULT; Schema: product; Owner: postgres
---
-
-ALTER TABLE ONLY product.product_category ALTER COLUMN cate_id SET DEFAULT nextval('product.product_category_cate_id_seq'::regclass);
-
-
---
 -- Name: products prod_id; Type: DEFAULT; Schema: product; Owner: postgres
 --
 
@@ -619,9 +529,29 @@ ALTER TABLE ONLY store.store_branch ALTER COLUMN branch_id SET DEFAULT nextval('
 
 
 --
--- Data for Name: manufacturer; Type: TABLE DATA; Schema: brand; Owner: postgres
+-- Data for Name: brands; Type: TABLE DATA; Schema: brand; Owner: postgres
 --
 
+INSERT INTO brand.brands VALUES ('Acer');
+INSERT INTO brand.brands VALUES ('Asus');
+INSERT INTO brand.brands VALUES ('Apple');
+INSERT INTO brand.brands VALUES ('Dell');
+INSERT INTO brand.brands VALUES ('Gigabyte');
+INSERT INTO brand.brands VALUES ('HP');
+INSERT INTO brand.brands VALUES ('Lenovo');
+INSERT INTO brand.brands VALUES ('LG');
+INSERT INTO brand.brands VALUES ('MSI');
+INSERT INTO brand.brands VALUES ('Xiaomi');
+INSERT INTO brand.brands VALUES ('Huawei');
+INSERT INTO brand.brands VALUES ('Sony');
+INSERT INTO brand.brands VALUES ('Microsoft');
+INSERT INTO brand.brands VALUES ('Intel');
+INSERT INTO brand.brands VALUES ('AMD');
+INSERT INTO brand.brands VALUES ('Samsung');
+INSERT INTO brand.brands VALUES ('Western Digital');
+INSERT INTO brand.brands VALUES ('Kingston');
+INSERT INTO brand.brands VALUES ('Seagate');
+INSERT INTO brand.brands VALUES ('Adata');
 
 
 --
@@ -640,12 +570,12 @@ ALTER TABLE ONLY store.store_branch ALTER COLUMN branch_id SET DEFAULT nextval('
 -- Data for Name: roles; Type: TABLE DATA; Schema: employee; Owner: postgres
 --
 
-INSERT INTO employee.roles VALUES (1, 'Admin');
-INSERT INTO employee.roles VALUES (2, 'Manager');
-INSERT INTO employee.roles VALUES (3, 'Cashier');
-INSERT INTO employee.roles VALUES (4, 'Inventory Clerk');
-INSERT INTO employee.roles VALUES (5, 'Shop Assistant');
-INSERT INTO employee.roles VALUES (6, 'Customer Service Representative');
+INSERT INTO employee.roles VALUES ('Admin');
+INSERT INTO employee.roles VALUES ('Manager');
+INSERT INTO employee.roles VALUES ('Cashier');
+INSERT INTO employee.roles VALUES ('Inventory Clerk');
+INSERT INTO employee.roles VALUES ('Shop Assistant');
+INSERT INTO employee.roles VALUES ('Customer Service Representative');
 
 
 --
@@ -670,10 +600,12 @@ INSERT INTO employee.roles VALUES (6, 'Customer Service Representative');
 -- Data for Name: product_category; Type: TABLE DATA; Schema: product; Owner: postgres
 --
 
-INSERT INTO product.product_category VALUES (1, 'Laptop');
-INSERT INTO product.product_category VALUES (2, 'PC');
-INSERT INTO product.product_category VALUES (3, 'Mini PC');
-INSERT INTO product.product_category VALUES (4, 'All-in-one');
+INSERT INTO product.product_category VALUES ('Laptop');
+INSERT INTO product.product_category VALUES ('PC');
+INSERT INTO product.product_category VALUES ('CPU');
+INSERT INTO product.product_category VALUES ('RAM');
+INSERT INTO product.product_category VALUES ('VGA');
+INSERT INTO product.product_category VALUES ('Monitor');
 
 
 --
@@ -701,24 +633,10 @@ INSERT INTO product.product_category VALUES (4, 'All-in-one');
 
 
 --
--- Name: manufacturer_manu_id_seq; Type: SEQUENCE SET; Schema: brand; Owner: postgres
---
-
-SELECT pg_catalog.setval('brand.manufacturer_manu_id_seq', 1, false);
-
-
---
 -- Name: employees_employee_id_seq; Type: SEQUENCE SET; Schema: employee; Owner: postgres
 --
 
 SELECT pg_catalog.setval('employee.employees_employee_id_seq', 1, false);
-
-
---
--- Name: roles_role_id_seq; Type: SEQUENCE SET; Schema: employee; Owner: postgres
---
-
-SELECT pg_catalog.setval('employee.roles_role_id_seq', 6, true);
 
 
 --
@@ -736,13 +654,6 @@ SELECT pg_catalog.setval('product.general_specs_spec_id_seq', 1, false);
 
 
 --
--- Name: product_category_cate_id_seq; Type: SEQUENCE SET; Schema: product; Owner: postgres
---
-
-SELECT pg_catalog.setval('product.product_category_cate_id_seq', 4, true);
-
-
---
 -- Name: products_prod_id_seq; Type: SEQUENCE SET; Schema: product; Owner: postgres
 --
 
@@ -757,19 +668,11 @@ SELECT pg_catalog.setval('store.storebranch_branch_id_seq', 1, false);
 
 
 --
--- Name: manufacturer manufacturer_pk; Type: CONSTRAINT; Schema: brand; Owner: postgres
+-- Name: brands brands_pk; Type: CONSTRAINT; Schema: brand; Owner: postgres
 --
 
-ALTER TABLE ONLY brand.manufacturer
-    ADD CONSTRAINT manufacturer_pk PRIMARY KEY (manu_id);
-
-
---
--- Name: manufacturer manufacturer_pk2; Type: CONSTRAINT; Schema: brand; Owner: postgres
---
-
-ALTER TABLE ONLY brand.manufacturer
-    ADD CONSTRAINT manufacturer_pk2 UNIQUE (manu_name);
+ALTER TABLE ONLY brand.brands
+    ADD CONSTRAINT brands_pk PRIMARY KEY (brand_name);
 
 
 --
@@ -813,19 +716,11 @@ ALTER TABLE ONLY employee.employees
 
 
 --
--- Name: roles roles_pk; Type: CONSTRAINT; Schema: employee; Owner: postgres
---
-
-ALTER TABLE ONLY employee.roles
-    ADD CONSTRAINT roles_pk PRIMARY KEY (role_id);
-
-
---
 -- Name: roles roles_pk2; Type: CONSTRAINT; Schema: employee; Owner: postgres
 --
 
 ALTER TABLE ONLY employee.roles
-    ADD CONSTRAINT roles_pk2 UNIQUE (role_name);
+    ADD CONSTRAINT roles_pk2 PRIMARY KEY (role_name);
 
 
 --
@@ -865,7 +760,7 @@ ALTER TABLE ONLY product.general_specs
 --
 
 ALTER TABLE ONLY product.general_specs
-    ADD CONSTRAINT general_specs_pk2 UNIQUE (spec_type, spec_value, product_cate_id);
+    ADD CONSTRAINT general_specs_pk2 UNIQUE (spec_type, spec_value, product_category);
 
 
 --
@@ -873,15 +768,7 @@ ALTER TABLE ONLY product.general_specs
 --
 
 ALTER TABLE ONLY product.product_category
-    ADD CONSTRAINT product_category_pk PRIMARY KEY (cate_id);
-
-
---
--- Name: product_category product_category_pk2; Type: CONSTRAINT; Schema: product; Owner: postgres
---
-
-ALTER TABLE ONLY product.product_category
-    ADD CONSTRAINT product_category_pk2 UNIQUE (cate_name);
+    ADD CONSTRAINT product_category_pk PRIMARY KEY (category_name);
 
 
 --
@@ -965,11 +852,11 @@ ALTER TABLE ONLY employee.employees
 
 
 --
--- Name: employees employees_roles_role_id_fk; Type: FK CONSTRAINT; Schema: employee; Owner: postgres
+-- Name: employees employees_roles_role_name_fk; Type: FK CONSTRAINT; Schema: employee; Owner: postgres
 --
 
 ALTER TABLE ONLY employee.employees
-    ADD CONSTRAINT employees_roles_role_id_fk FOREIGN KEY (role_id) REFERENCES employee.roles(role_id);
+    ADD CONSTRAINT employees_roles_role_name_fk FOREIGN KEY (role) REFERENCES employee.roles(role_name);
 
 
 --
@@ -1013,11 +900,11 @@ ALTER TABLE ONLY "order".warranty
 
 
 --
--- Name: general_specs general_specs_product_category_cate_id_fk; Type: FK CONSTRAINT; Schema: product; Owner: postgres
+-- Name: general_specs general_specs_product_category_category_name_fk; Type: FK CONSTRAINT; Schema: product; Owner: postgres
 --
 
 ALTER TABLE ONLY product.general_specs
-    ADD CONSTRAINT general_specs_product_category_cate_id_fk FOREIGN KEY (product_cate_id) REFERENCES product.product_category(cate_id);
+    ADD CONSTRAINT general_specs_product_category_category_name_fk FOREIGN KEY (product_category) REFERENCES product.product_category(category_name);
 
 
 --
@@ -1061,19 +948,19 @@ ALTER TABLE ONLY product.product_specs
 
 
 --
--- Name: products products_manufacturer_manu_id_fk; Type: FK CONSTRAINT; Schema: product; Owner: postgres
+-- Name: products products_brands_brand_name_fk; Type: FK CONSTRAINT; Schema: product; Owner: postgres
 --
 
 ALTER TABLE ONLY product.products
-    ADD CONSTRAINT products_manufacturer_manu_id_fk FOREIGN KEY (prod_brand_id) REFERENCES brand.manufacturer(manu_id);
+    ADD CONSTRAINT products_brands_brand_name_fk FOREIGN KEY (prod_brand_name) REFERENCES brand.brands(brand_name);
 
 
 --
--- Name: products products_product_category_cate_id_fk; Type: FK CONSTRAINT; Schema: product; Owner: postgres
+-- Name: products products_product_category_category_name_fk; Type: FK CONSTRAINT; Schema: product; Owner: postgres
 --
 
 ALTER TABLE ONLY product.products
-    ADD CONSTRAINT products_product_category_cate_id_fk FOREIGN KEY (prod_category_id) REFERENCES product.product_category(cate_id);
+    ADD CONSTRAINT products_product_category_category_name_fk FOREIGN KEY (prod_category_name) REFERENCES product.product_category(category_name);
 
 
 --
