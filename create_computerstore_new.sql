@@ -252,6 +252,65 @@ $$;
 
 ALTER PROCEDURE product.add_new_product(IN brand character varying, IN model character varying, IN category character varying, IN price integer) OWNER TO postgres;
 
+--
+-- Name: add_spec_to_product(integer, integer); Type: PROCEDURE; Schema: product; Owner: postgres
+--
+
+CREATE PROCEDURE product.add_spec_to_product(IN product_id integer, IN specification_id integer)
+    LANGUAGE plpgsql
+    AS $$
+declare
+    new_spec_category_name varchar(255);
+    new_prod_category_name varchar(255);
+    begin
+    if not exists (select prod_id from product.products where prod_id = product_id)
+        then raise notice E'Product ID does not exist.\nNo changes were made.';
+    elsif not exists (select spec_id from product.general_specs where spec_id = specification_id)
+        then raise notice E'Specification ID does not exist.\nNo changes were made.';
+    else
+        select product_category into new_spec_category_name from product.general_specs where spec_id = specification_id;
+        select prod_category_name into new_prod_category_name from product.products where prod_id = product_id;
+        if new_spec_category_name not like new_prod_category_name
+            then raise notice E'Product category mismatch. No changes were made.\nProduct category is %, while given specification is for category %.', new_prod_category_name, new_spec_category_name;
+        elsif exists (select prod_id from product.product_specs where prod_id = product_id and spec_id = specification_id)
+            then raise notice E'The product already has the given specification.\nNo changes were made.';
+        else
+            execute 'insert into product.product_specs values (' || product_id || ',' || specification_id || ');' ;
+            raise notice 'Successfully added specification to the product.';
+        end if;
+    end if;
+end
+    $$;
+
+
+ALTER PROCEDURE product.add_spec_to_product(IN product_id integer, IN specification_id integer) OWNER TO postgres;
+
+--
+-- Name: query_product_specs(integer); Type: FUNCTION; Schema: product; Owner: postgres
+--
+
+CREATE FUNCTION product.query_product_specs(product_id integer) RETURNS TABLE("Product specifications" text)
+    LANGUAGE plpgsql
+    AS $$
+        declare
+            product_name varchar(255);
+            title varchar(255);
+        begin
+            select concat(prod_brand_name, ' ', prod_model_name, ' ', variant)
+            into product_name
+            from product.products
+            where prod_id = product_id;
+            title := concat('Specifications for ',product_name);
+            raise notice '%',title;
+            return query select concat(gs.spec_type, ': ', gs.display_title, ', ', coalesce(gs.description, '')) as title
+            from product.product_specs inner join product.general_specs gs on gs.spec_id = product_specs.spec_id
+            where prod_id = product_id;
+        end
+    $$;
+
+
+ALTER FUNCTION product.query_product_specs(product_id integer) OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -2263,6 +2322,7 @@ INSERT INTO product.product_specs VALUES (1, 6);
 INSERT INTO product.product_specs VALUES (1, 15);
 INSERT INTO product.product_specs VALUES (1, 17);
 INSERT INTO product.product_specs VALUES (1, 31);
+INSERT INTO product.product_specs VALUES (1, 11);
 
 
 --
