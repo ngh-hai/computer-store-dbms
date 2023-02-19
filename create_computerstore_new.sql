@@ -139,6 +139,25 @@ $$;
 ALTER PROCEDURE brand.add_new_brands(VARIADIC new_brands character varying[]) OWNER TO postgres;
 
 --
+-- Name: add_new_customer(bigint, character varying, character varying, character varying, character varying, character varying); Type: PROCEDURE; Schema: customer; Owner: postgres
+--
+
+CREATE PROCEDURE customer.add_new_customer(IN new_phone bigint, IN new_name character varying DEFAULT ''::character varying, IN new_email character varying DEFAULT ''::character varying, IN new_address character varying DEFAULT ''::character varying, IN new_district character varying DEFAULT ''::character varying, IN new_city character varying DEFAULT ''::character varying)
+    LANGUAGE plpgsql
+    AS $$
+    begin
+        if exists (select * from customer.customers where phone = new_phone)
+            then raise notice E'WARNING: This phone number is already registered. No changes were made.\nConsider update the customer information instead.';
+        else
+            execute 'insert into customer.customers(name, email, phone, address, district, city) values (''' || new_name || ''',''' || new_email || ''',' || new_phone || ',''' || new_address || ''',''' || new_district || ''',''' || new_city || ''');';
+        end if;
+    end;
+$$;
+
+
+ALTER PROCEDURE customer.add_new_customer(IN new_phone bigint, IN new_name character varying, IN new_email character varying, IN new_address character varying, IN new_district character varying, IN new_city character varying) OWNER TO postgres;
+
+--
 -- Name: add_new_employee(character varying, character varying, character varying, character varying, character varying, bigint, character varying, character varying, character varying, integer, boolean); Type: PROCEDURE; Schema: employee; Owner: postgres
 --
 
@@ -201,6 +220,44 @@ CREATE FUNCTION employee.login(user_name character varying, pass_word character 
 ALTER FUNCTION employee.login(user_name character varying, pass_word character varying) OWNER TO postgres;
 
 --
+-- Name: update_item_to_cart(integer, integer, integer); Type: PROCEDURE; Schema: order; Owner: postgres
+--
+
+CREATE PROCEDURE "order".update_item_to_cart(IN new_customer_phone integer, IN new_prod_id integer, IN new_quantity integer)
+    LANGUAGE plpgsql
+    AS $$
+    declare
+        current_quantity int;
+    begin
+        if not exists (select * from "order".cart where customer_phone = new_customer_phone and prod_id = new_prod_id)
+            then
+                if new_quantity > 0 and new_quantity <= (select quantity from product.products_quantity where prod_id = new_prod_id)
+                    then execute 'insert into "order".cart(customer_phone, prod_id, quantity) values (' || new_customer_phone || ',' || new_prod_id || ',' || new_quantity || ');';
+                    raise notice E'Item is inserted to cart with quantity %.', new_quantity;
+                else
+                    raise notice E'WARNING: The quantity is not valid.\nNo changes were made.';
+                end if;
+        else
+            select quantity into current_quantity from "order".cart where customer_phone = new_customer_phone and prod_id = new_prod_id;
+            if current_quantity + new_quantity > 0 and current_quantity + new_quantity <= (select quantity from product.products_quantity where prod_id = new_prod_id)
+                then execute 'update "order".cart set quantity = ' || current_quantity + new_quantity || ' where customer_phone = ' || new_customer_phone || ' and prod_id = ' || new_prod_id || ';';
+                raise notice E'Item is updated in cart with quantity %.', current_quantity + new_quantity;
+            else
+                if current_quantity + new_quantity = 0
+                    then execute 'delete from "order".cart where customer_phone = ' || new_customer_phone || ' and prod_id = ' || new_prod_id || ';';
+                    raise notice E'Item is deleted from cart.';
+                else
+                    raise notice E'WARNING: The quantity is not valid.\nNo changes were made.';
+                end if;
+            end if;
+        end if;
+    end;
+    $$;
+
+
+ALTER PROCEDURE "order".update_item_to_cart(IN new_customer_phone integer, IN new_prod_id integer, IN new_quantity integer) OWNER TO postgres;
+
+--
 -- Name: add_new_categories(character varying[]); Type: PROCEDURE; Schema: product; Owner: postgres
 --
 
@@ -223,6 +280,26 @@ $$;
 
 
 ALTER PROCEDURE product.add_new_categories(VARIADIC new_categories character varying[]) OWNER TO postgres;
+
+--
+-- Name: add_new_general_specs(character varying, character varying, character varying, character varying, character varying); Type: PROCEDURE; Schema: product; Owner: postgres
+--
+
+CREATE PROCEDURE product.add_new_general_specs(IN new_display_title character varying, IN new_spec_type character varying, IN new_spec_value character varying, IN new_description character varying, IN new_product_category character varying)
+    LANGUAGE plpgsql
+    AS $$
+    begin
+        if exists (select * from product.general_specs where display_title = new_display_title and spec_type = new_spec_type and spec_value = new_spec_value and description = new_description and product_category = new_product_category)
+            then raise notice E'WARNING: This specification is already inserted.\nNo changes were made.';
+        else
+            execute 'insert into product.general_specs(display_title, spec_type, spec_value, description, product_category) values (''' || new_display_title || ''',''' || new_spec_type || ''',''' || new_spec_value || ''',''' || new_description || ''',''' || new_product_category || ''');';
+            raise notice E'Specification is inserted.';
+        end if;
+    end;
+    $$;
+
+
+ALTER PROCEDURE product.add_new_general_specs(IN new_display_title character varying, IN new_spec_type character varying, IN new_spec_value character varying, IN new_description character varying, IN new_product_category character varying) OWNER TO postgres;
 
 --
 -- Name: add_new_product(character varying, character varying, character varying, integer); Type: PROCEDURE; Schema: product; Owner: postgres
@@ -251,6 +328,26 @@ $$;
 
 
 ALTER PROCEDURE product.add_new_product(IN brand character varying, IN model character varying, IN category character varying, IN price integer) OWNER TO postgres;
+
+--
+-- Name: add_new_product_instance(integer, character varying, integer, integer, date); Type: PROCEDURE; Schema: product; Owner: postgres
+--
+
+CREATE PROCEDURE product.add_new_product_instance(IN new_prod_id integer, IN new_serial_number character varying, IN new_branch_id integer, IN new_warranty_period integer, IN new_imported_date date DEFAULT CURRENT_DATE)
+    LANGUAGE plpgsql
+    AS $$
+    begin
+        if exists (select * from product.product_instance where serial_number = new_serial_number)
+            then raise notice E'WARNING: This serial number is already registered.\nNo changes were made.';
+        else
+            execute 'insert into product.product_instance(prod_id, serial_number, branch_id, import_date, warranty_period) values (' || new_prod_id || ',''' || new_serial_number || ''',' || new_branch_id || ',''' || new_imported_date || ''',' || new_warranty_period || ');';
+            raise notice E'Product instance is inserted.';
+        end if;
+    end;
+    $$;
+
+
+ALTER PROCEDURE product.add_new_product_instance(IN new_prod_id integer, IN new_serial_number character varying, IN new_branch_id integer, IN new_warranty_period integer, IN new_imported_date date) OWNER TO postgres;
 
 --
 -- Name: add_spec_to_product(integer, integer); Type: PROCEDURE; Schema: product; Owner: postgres
@@ -286,6 +383,32 @@ end
 ALTER PROCEDURE product.add_spec_to_product(IN product_id integer, IN specification_id integer) OWNER TO postgres;
 
 --
+-- Name: check_new_product_spec_type(); Type: FUNCTION; Schema: product; Owner: postgres
+--
+
+CREATE FUNCTION product.check_new_product_spec_type() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    declare
+        spec record;
+        new_spec_type varchar(255);
+        begin
+            -- create a loop to check if the new product specs has the spec_type same as any of spec_type of spec_id in product_specs
+            select spec_type into new_spec_type from product.general_specs where spec_id = new.spec_id;
+            for spec in (select spec_id from product.product_specs where prod_id = new.prod_id)
+            loop
+                if exists (select spec_id from product.general_specs where spec_id = spec.spec_id and spec_type = new_spec_type)
+                    then raise notice E'WARNING: This product already has specification of type %.\n', new_spec_type;
+                end if;
+            end loop;
+            return new;
+        end;
+    $$;
+
+
+ALTER FUNCTION product.check_new_product_spec_type() OWNER TO postgres;
+
+--
 -- Name: query_product_specs(integer); Type: FUNCTION; Schema: product; Owner: postgres
 --
 
@@ -310,6 +433,102 @@ CREATE FUNCTION product.query_product_specs(product_id integer) RETURNS TABLE("P
 
 
 ALTER FUNCTION product.query_product_specs(product_id integer) OWNER TO postgres;
+
+--
+-- Name: add_new_store_branch(character varying, bigint, character varying, character varying, character varying, character varying, time without time zone, time without time zone, integer); Type: PROCEDURE; Schema: store; Owner: postgres
+--
+
+CREATE PROCEDURE store.add_new_store_branch(IN new_address character varying, IN new_phone bigint, IN new_ward character varying DEFAULT ''::character varying, IN new_district character varying DEFAULT ''::character varying, IN new_city character varying DEFAULT ''::character varying, IN new_email character varying DEFAULT ''::character varying, IN new_open_time time without time zone DEFAULT '08:30:00'::time without time zone, IN new_close_time time without time zone DEFAULT '21:00:00'::time without time zone, IN new_manager_id integer DEFAULT NULL::integer)
+    LANGUAGE plpgsql
+    AS $$
+    declare
+        new_manager_id_to_str varchar(255);
+    begin
+        if new_manager_id is not null
+            then
+                if not exists (select * from employee.employees where employee_id = new_manager_id and role = 'Manager')
+                    then raise notice E'WARNING: This employee_id is not a manager.\nNo changes were made.';
+                else
+                    if exists (select * from store.store_branch where manager_id = new_manager_id)
+                        then raise notice E'WARNING: This manager is already assigned to a store branch.\nNo changes were made.';
+                    end if;
+                end if;
+        end if;
+        if exists (select * from store.store_branch where address = new_address and ward = new_ward and district = new_district and city = new_city)
+            then raise notice E'WARNING: This store branch already exists.\nNo changes were made.';
+        else
+            if exists (select * from store.store_branch where email = new_email or phone = new_phone)
+                then raise notice E'WARNING: This email or phone number is already registered.\nNo changes were made.';
+            else
+                if new_manager_id is not null
+                    then new_manager_id_to_str = new_manager_id::varchar;
+                    else new_manager_id_to_str = 'null';
+                end if;
+                execute 'insert into store.store_branch(address, ward, district, city, email, phone, open_time, close_time, manager_id) values (''' || new_address || ''',''' || new_ward || ''',''' || new_district || ''',''' || new_city || ''',''' || new_email || ''',' || new_phone || ',''' || new_open_time || ''',''' || new_close_time || ''',' || new_manager_id_to_str || ');';
+            end if;
+        end if;
+    end;
+$$;
+
+
+ALTER PROCEDURE store.add_new_store_branch(IN new_address character varying, IN new_phone bigint, IN new_ward character varying, IN new_district character varying, IN new_city character varying, IN new_email character varying, IN new_open_time time without time zone, IN new_close_time time without time zone, IN new_manager_id integer) OWNER TO postgres;
+
+--
+-- Name: add_new_store_branch(character varying, character varying, bigint, character varying, character varying, character varying, time without time zone, time without time zone, integer); Type: PROCEDURE; Schema: store; Owner: postgres
+--
+
+CREATE PROCEDURE store.add_new_store_branch(IN new_address character varying, IN new_city character varying, IN new_phone bigint, IN new_email character varying, IN new_ward character varying DEFAULT ''::character varying, IN new_district character varying DEFAULT ''::character varying, IN new_open_time time without time zone DEFAULT '08:30:00'::time without time zone, IN new_close_time time without time zone DEFAULT '21:00:00'::time without time zone, IN new_manager_id integer DEFAULT NULL::integer)
+    LANGUAGE plpgsql
+    AS $$
+    declare
+        new_manager_id_to_str varchar(255);
+    begin
+        if new_manager_id is not null
+            then
+                if not exists (select * from employee.employees where employee_id = new_manager_id and role = 'Manager')
+                    then raise notice E'WARNING: This employee_id is not a manager.\nNo changes were made.';
+                else
+                    if exists (select * from store.store_branch where manager_id = new_manager_id)
+                        then raise notice E'WARNING: This manager is already assigned to a store branch.\nNo changes were made.';
+                    end if;
+                end if;
+        end if;
+        if exists (select * from store.store_branch where address = new_address and ward = new_ward and district = new_district and city = new_city)
+            then raise notice E'WARNING: This store branch already exists.\nNo changes were made.';
+        else
+            if exists (select * from store.store_branch where email = new_email or phone = new_phone)
+                then raise notice E'WARNING: This email or phone number is already registered.\nNo changes were made.';
+            else
+                if new_manager_id is not null
+                    then new_manager_id_to_str = new_manager_id::varchar;
+                    else new_manager_id_to_str = 'null';
+                end if;
+                execute 'insert into store.store_branch(address, ward, district, city, email, phone, open_time, close_time, manager_id) values (''' || new_address || ''',''' || new_ward || ''',''' || new_district || ''',''' || new_city || ''',''' || new_email || ''',' || new_phone || ',''' || new_open_time || ''',''' || new_close_time || ''',' || new_manager_id_to_str || ');';
+            end if;
+        end if;
+    end;
+$$;
+
+
+ALTER PROCEDURE store.add_new_store_branch(IN new_address character varying, IN new_city character varying, IN new_phone bigint, IN new_email character varying, IN new_ward character varying, IN new_district character varying, IN new_open_time time without time zone, IN new_close_time time without time zone, IN new_manager_id integer) OWNER TO postgres;
+
+--
+-- Name: check_new_store_branch_address(); Type: FUNCTION; Schema: store; Owner: postgres
+--
+
+CREATE FUNCTION store.check_new_store_branch_address() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    begin
+        if exists (select * from store.store_branch where address = new.address and branch_id <> new.branch_id)
+            then raise notice E'WARNING: There could be another store branch with the same address.\nConsider double check the information, or update the store branch information instead.';
+        end if;
+        return new;
+    end;
+    $$;
+
+
+ALTER FUNCTION store.check_new_store_branch_address() OWNER TO postgres;
 
 SET default_tablespace = '';
 
@@ -435,6 +654,85 @@ CREATE TABLE employee.roles (
 ALTER TABLE employee.roles OWNER TO postgres;
 
 --
+-- Name: cart; Type: TABLE; Schema: order; Owner: postgres
+--
+
+CREATE TABLE "order".cart (
+    cart_item_id integer NOT NULL,
+    customer_phone integer,
+    prod_id integer,
+    quantity integer
+);
+
+
+ALTER TABLE "order".cart OWNER TO postgres;
+
+--
+-- Name: cart_cart_item_id_seq; Type: SEQUENCE; Schema: order; Owner: postgres
+--
+
+CREATE SEQUENCE "order".cart_cart_item_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "order".cart_cart_item_id_seq OWNER TO postgres;
+
+--
+-- Name: cart_cart_item_id_seq; Type: SEQUENCE OWNED BY; Schema: order; Owner: postgres
+--
+
+ALTER SEQUENCE "order".cart_cart_item_id_seq OWNED BY "order".cart.cart_item_id;
+
+
+--
+-- Name: discount; Type: TABLE; Schema: order; Owner: postgres
+--
+
+CREATE TABLE "order".discount (
+    discount_id integer NOT NULL,
+    apply_for integer,
+    discount_percent integer,
+    expire_date date
+);
+
+
+ALTER TABLE "order".discount OWNER TO postgres;
+
+--
+-- Name: COLUMN discount.apply_for; Type: COMMENT; Schema: order; Owner: postgres
+--
+
+COMMENT ON COLUMN "order".discount.apply_for IS 'For which product id?';
+
+
+--
+-- Name: discount_discount_id_seq; Type: SEQUENCE; Schema: order; Owner: postgres
+--
+
+CREATE SEQUENCE "order".discount_discount_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "order".discount_discount_id_seq OWNER TO postgres;
+
+--
+-- Name: discount_discount_id_seq; Type: SEQUENCE OWNED BY; Schema: order; Owner: postgres
+--
+
+ALTER SEQUENCE "order".discount_discount_id_seq OWNED BY "order".discount.discount_id;
+
+
+--
 -- Name: orders; Type: TABLE; Schema: order; Owner: postgres
 --
 
@@ -536,6 +834,62 @@ CREATE TABLE product.general_specs (
 ALTER TABLE product.general_specs OWNER TO postgres;
 
 --
+-- Name: product_specs; Type: TABLE; Schema: product; Owner: postgres
+--
+
+CREATE TABLE product.product_specs (
+    prod_id integer NOT NULL,
+    spec_id integer NOT NULL
+);
+
+
+ALTER TABLE product.product_specs OWNER TO postgres;
+
+--
+-- Name: products; Type: TABLE; Schema: product; Owner: postgres
+--
+
+CREATE TABLE product.products (
+    prod_id integer NOT NULL,
+    prod_brand_name character varying(255) NOT NULL,
+    prod_model_name character varying(255) NOT NULL,
+    prod_category_name character varying(255) NOT NULL,
+    price integer NOT NULL,
+    variant character varying(255),
+    description character varying(255),
+    CONSTRAINT check_valid_price CHECK ((price > 0))
+);
+
+
+ALTER TABLE product.products OWNER TO postgres;
+
+--
+-- Name: TABLE products; Type: COMMENT; Schema: product; Owner: postgres
+--
+
+COMMENT ON TABLE product.products IS 'General products information';
+
+
+--
+-- Name: all_products_info; Type: MATERIALIZED VIEW; Schema: product; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW product.all_products_info AS
+ SELECT p.prod_id,
+    concat(p.prod_brand_name, ' ', p.prod_model_name) AS full_name,
+    p.prod_category_name,
+    gs.display_title,
+    gs.description,
+    p.price
+   FROM ((product.products p
+     JOIN product.product_specs ps ON ((p.prod_id = ps.prod_id)))
+     JOIN product.general_specs gs ON ((ps.spec_id = gs.spec_id)))
+  WITH NO DATA;
+
+
+ALTER TABLE product.all_products_info OWNER TO postgres;
+
+--
 -- Name: general_specs_spec_id_seq; Type: SEQUENCE; Schema: product; Owner: postgres
 --
 
@@ -599,43 +953,6 @@ COMMENT ON COLUMN product.product_instance.warranty_period IS 'Time of warranty 
 
 
 --
--- Name: product_specs; Type: TABLE; Schema: product; Owner: postgres
---
-
-CREATE TABLE product.product_specs (
-    prod_id integer NOT NULL,
-    spec_id integer NOT NULL
-);
-
-
-ALTER TABLE product.product_specs OWNER TO postgres;
-
---
--- Name: products; Type: TABLE; Schema: product; Owner: postgres
---
-
-CREATE TABLE product.products (
-    prod_id integer NOT NULL,
-    prod_brand_name character varying(255) NOT NULL,
-    prod_model_name character varying(255) NOT NULL,
-    prod_category_name character varying(255) NOT NULL,
-    price integer NOT NULL,
-    variant character varying(255),
-    description character varying(255),
-    CONSTRAINT check_valid_price CHECK ((price > 0))
-);
-
-
-ALTER TABLE product.products OWNER TO postgres;
-
---
--- Name: TABLE products; Type: COMMENT; Schema: product; Owner: postgres
---
-
-COMMENT ON TABLE product.products IS 'General products information';
-
-
---
 -- Name: products_prod_id_seq; Type: SEQUENCE; Schema: product; Owner: postgres
 --
 
@@ -656,6 +973,25 @@ ALTER TABLE product.products_prod_id_seq OWNER TO postgres;
 
 ALTER SEQUENCE product.products_prod_id_seq OWNED BY product.products.prod_id;
 
+
+--
+-- Name: products_quantity; Type: MATERIALIZED VIEW; Schema: product; Owner: postgres
+--
+
+CREATE MATERIALIZED VIEW product.products_quantity AS
+ SELECT p.prod_id,
+    concat(p.prod_brand_name, ' ', p.prod_model_name) AS full_name,
+    p.prod_category_name,
+    count(pi.serial_number) AS quantity
+   FROM (product.products p
+     JOIN product.product_instance pi ON ((p.prod_id = pi.prod_id)))
+  WHERE (pi.order_id IS NULL)
+  GROUP BY p.prod_id, p.prod_brand_name, p.prod_model_name, p.prod_category_name
+  ORDER BY p.prod_id
+  WITH NO DATA;
+
+
+ALTER TABLE product.products_quantity OWNER TO postgres;
 
 --
 -- Name: store_branch; Type: TABLE; Schema: store; Owner: postgres
@@ -714,6 +1050,20 @@ ALTER TABLE ONLY employee.employees ALTER COLUMN employee_id SET DEFAULT nextval
 
 
 --
+-- Name: cart cart_item_id; Type: DEFAULT; Schema: order; Owner: postgres
+--
+
+ALTER TABLE ONLY "order".cart ALTER COLUMN cart_item_id SET DEFAULT nextval('"order".cart_cart_item_id_seq'::regclass);
+
+
+--
+-- Name: discount discount_id; Type: DEFAULT; Schema: order; Owner: postgres
+--
+
+ALTER TABLE ONLY "order".discount ALTER COLUMN discount_id SET DEFAULT nextval('"order".discount_discount_id_seq'::regclass);
+
+
+--
 -- Name: orders order_id; Type: DEFAULT; Schema: order; Owner: postgres
 --
 
@@ -766,6 +1116,10 @@ INSERT INTO brand.brands VALUES ('Kingston');
 INSERT INTO brand.brands VALUES ('Seagate');
 INSERT INTO brand.brands VALUES ('Adata');
 INSERT INTO brand.brands VALUES ('Sandisk');
+INSERT INTO brand.brands VALUES ('AKKO');
+INSERT INTO brand.brands VALUES ('Royal Kludge');
+INSERT INTO brand.brands VALUES ('Razer');
+INSERT INTO brand.brands VALUES ('Logitech');
 
 
 --
@@ -983,6 +1337,7 @@ INSERT INTO customer.customers VALUES ('Ta Thanh Ngoc', '193 Hang Ca', 'Long Bie
 INSERT INTO customer.customers VALUES ('Dinh Thanh Lan', '964 Hang Can', 'Hong Bang', 'Nha Trang', 'lan.dt713@gmail.com', 2501748502);
 INSERT INTO customer.customers VALUES ('Huynh Thanh Huong', '378 Hang Voi', 'Ba Dinh', 'Quang Ninh', 'huong.ht495@gmail.com', 2842742590);
 INSERT INTO customer.customers VALUES ('Dang Thanh Chien', '302 Luong Dinh Cua', 'Quan 3', 'Quang Nam', 'chien.dt11@gmail.com', 2020569634);
+INSERT INTO customer.customers VALUES ('Hoang Hai', '', '', '', '', 9125711554);
 INSERT INTO customer.customers VALUES ('Luong Nam Hiep', '853 Hang Ca', 'Phu Nhuan', 'Dak Lak', 'hiep.ln439@gmail.com', 4356478522);
 INSERT INTO customer.customers VALUES ('Trinh Kieu Quynh', '219 Hang Chieu', 'Le Chan', 'Ninh Thuan', 'quynh.tk202@gmail.com', 5793576859);
 INSERT INTO customer.customers VALUES ('Quach Kieu Chien', '489 Ngo Quyen', 'Le Chan', 'Dak Lak', 'chien.qk128@gmail.com', 9889441006);
@@ -2242,6 +2597,19 @@ INSERT INTO employee.roles VALUES ('Customer Service Representative');
 
 
 --
+-- Data for Name: cart; Type: TABLE DATA; Schema: order; Owner: postgres
+--
+
+INSERT INTO "order".cart VALUES (2, 1001019125, 3, 2);
+
+
+--
+-- Data for Name: discount; Type: TABLE DATA; Schema: order; Owner: postgres
+--
+
+
+
+--
 -- Data for Name: orders; Type: TABLE DATA; Schema: order; Owner: postgres
 --
 
@@ -2292,6 +2660,29 @@ INSERT INTO product.general_specs VALUES ('Intel® Core™ i9', 'cpu_model', 'i9
 INSERT INTO product.general_specs VALUES ('AMD Ryzen™', 'cpu_model', 'ryzen_9_pro_5945', 'Ryzen™ 9 PRO 5945, 12C/24T, 3.0GHz up to 4.7GHz, 64MB Cache, 65W', 'CPU', 33);
 INSERT INTO product.general_specs VALUES ('AMD Ryzen™', 'cpu_model', 'ryzen_7_pro_5750g', 'Ryzen™ 7 PRO 5750G, 8C/16T, 3.8GHz up to 4.6GHz, 16MB Cache, 65W', 'CPU', 34);
 INSERT INTO product.general_specs VALUES ('AMD Ryzen™', 'cpu_model', 'ryzen_3_pro_5350g', 'Ryzen™ 3 PRO 5350G, 4C/8T, 4.0GHz up to 4.2GHz, 8MB Cache, 65W', 'CPU', 35);
+INSERT INTO product.general_specs VALUES ('3456 x 2160', 'display_resolution', '3456_2160', 'Quad HD+ (3.5K)', 'Laptop', 36);
+INSERT INTO product.general_specs VALUES ('1920 x 1080', 'display_resolution', '1920_1080', 'Full HD (1080p)', 'Monitor', 37);
+INSERT INTO product.general_specs VALUES ('2560 x 1440', 'display_resolution', '2560_1440', 'Quad HD+ (2K)', 'Monitor', 38);
+INSERT INTO product.general_specs VALUES ('3840 x 2160', 'display_resolution', '3840_2160', 'Ultra HD (4K)', 'Monitor', 39);
+INSERT INTO product.general_specs VALUES ('18"', 'display_size', '18_inch', '18 inches', 'Monitor', 40);
+INSERT INTO product.general_specs VALUES ('24"', 'display_size', '24_inch', '24 inches', 'Monitor', 41);
+INSERT INTO product.general_specs VALUES ('Cherry MX Red', 'switch_type', 'cherry_mx_red', 'Cherry MX Red', 'Keyboard', 42);
+INSERT INTO product.general_specs VALUES ('Cherry MX Blue', 'switch_type', 'cherry_mx_blue', 'Cherry MX Blue', 'Keyboard', 43);
+INSERT INTO product.general_specs VALUES ('Cherry MX Brown', 'switch_type', 'cherry_mx_brown', 'Cherry MX Brown', 'Keyboard', 44);
+INSERT INTO product.general_specs VALUES ('2 kg', 'weight', '2_kg', '', 'Keyboard', 45);
+INSERT INTO product.general_specs VALUES ('3 kg', 'weight', '3_kg', '', 'Keyboard', 46);
+INSERT INTO product.general_specs VALUES ('Black', 'color', 'black', '', 'Keyboard', 47);
+INSERT INTO product.general_specs VALUES ('White', 'color', 'white', '', 'Keyboard', 48);
+INSERT INTO product.general_specs VALUES ('Wired', 'connection_type', 'wired', 'Wired', 'Keyboard', 49);
+INSERT INTO product.general_specs VALUES ('Bluetooth', 'connection_type', 'bluetooth', 'Bluetooth', 'Keyboard', 50);
+INSERT INTO product.general_specs VALUES ('USB', 'connection_type', 'usb', 'USB', 'Keyboard', 51);
+INSERT INTO product.general_specs VALUES ('Bluetooth', 'connection_type', 'bluetooth', 'Bluetooth', 'Mouse', 52);
+INSERT INTO product.general_specs VALUES ('USB', 'connection_type', 'usb', 'USB', 'Mouse', 53);
+INSERT INTO product.general_specs VALUES ('Wired', 'connection_type', 'wired', 'Wired', 'Mouse', 54);
+INSERT INTO product.general_specs VALUES ('20 hours', 'battery_life', '20_hour', '', 'Mouse', 57);
+INSERT INTO product.general_specs VALUES ('30 hours', 'battery_life', '30_hour', '', 'Mouse', 58);
+INSERT INTO product.general_specs VALUES ('Black', 'color', 'black', '', 'Mouse', 55);
+INSERT INTO product.general_specs VALUES ('White', 'color', 'white', '', 'Mouse', 56);
 
 
 --
@@ -2312,6 +2703,2006 @@ INSERT INTO product.product_category VALUES ('Mouse');
 -- Data for Name: product_instance; Type: TABLE DATA; Schema: product; Owner: postgres
 --
 
+INSERT INTO product.product_instance VALUES (15, 'XR44IW8HUE', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'QAN7UKB344', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '0Q2VRYUMJG', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'HZPNH9LKLC', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '0QPOT4G8P9', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'L47U4KGIC4', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'B04Z0O91YP', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'RZZ2NJWYBJ', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'F9R04PG0HE', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '04H5M4LV8T', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'CSKZAP68R6', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'ZQL6LW7KBI', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'GCWDIIL4B8', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'H3QFFRE494', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'G2B2QSPBGX', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '7JA1KEV224', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'LA0ZFUCQ1B', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'RZHPQTV77W', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'UN5AFTNJ12', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'JSZZRAKTR8', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'ZV7ATK26Y8', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'M3YH2I13PA', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'J9J7LEUDAP', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'HNWKI8WSFO', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '4BXHXUO3CV', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '7WHR7UUBX8', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'AVNNGDXRZ3', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'OYK0VRYXCP', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'ZIG4SN0M24', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '34I5YM17M9', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '314BCX4980', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '87QG5NB0R1', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'PAES668R6N', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '1E38SVKS1W', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'SQF83NEMRE', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'BI5ABTI5XO', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'IFBTRQY765', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '15C6E5G583', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'A87RATQW35', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'T4MR3236AS', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'XTZ3LSHY9L', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '8FNCQPQ9CR', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'LZ52CFRBKA', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'MHQ9HAFBLP', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '64VGZDK8J3', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'S3AIAWI9XF', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'VY2LQFBINE', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'N2BVETYXQG', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'SYH4TH08ZD', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'Q411ESKKMC', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'C67M9CXFBR', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'FOZTUGPGXW', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'I694Q51JEB', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '7CBOWGYGBC', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'QRPC0Y7KFS', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'MBG2BHZG0C', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '9RFCGGC109', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'F6T7Q4P7PY', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '27MZEXMXUY', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'NXQNHABWWG', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'HE0K9RB5QW', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'EHDMITMMCQ', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'AY2R7V9QCL', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'S60DUMXSWZ', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'N682ATNPPH', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'D633TNXOXI', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'Y2A7GRTODH', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'BNO3QPQKKE', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '4G09BM9KTQ', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'D3PQS7S1WG', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '45C066Z3AN', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'J32XNVMOBZ', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'GO8I9TLZMT', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'M31022X940', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'TIBME136TT', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'PBONR8J6VD', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'SIZPUWK0JH', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'BN2UWLAIB0', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '61DFVLOVY2', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'KQA34IF3ID', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '9TZPMV89JO', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'MHL6RZ8VKX', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'OA2BCYKFKM', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '175ZVA9SHJ', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'LS9VI5U6KF', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'S1VZHFNXF3', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'EL40CUV105', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'HTRJ24M0V6', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'NAZ53ZYBFQ', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '9RMXR9OP15', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'AEMSRWKWMX', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'DLPDZWJCGN', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'WV00OQPDZQ', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'O9XTWAHTOR', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'J6JF19QQIN', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'K02DKYTWDW', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'I7AGAC08RK', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '49ZVXOKT6U', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'IZT68B5SB6', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'S735FWHNQK', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'MX8G52NTF9', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'D04FES3KM5', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'OBTT9TR3F6', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '69C30XQNEC', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '0MND0J4YO6', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'NZUA5Y7HCJ', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'TLUQ2I7HZF', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '5QRHF5FN7H', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'UMKGE4E9FP', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'IT4SAUVZ4K', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'STK80EPYCW', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'E6364P3T21', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'SEQ9GV009B', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'WNXTVW9W1H', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'WYQE91CBUZ', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'RIGMWAZ7NW', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '5X8WGISMJ7', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '4WAUHMK97F', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '4A9KV8MB80', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '7NMKM7BAHN', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '91DTL4ET5L', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '976B4Y3CNJ', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'KJN5CJ9VSU', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'OLMKZW4IY4', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'AC8L7NUNL8', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'CAUI7402D2', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'WM543PSCF0', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '412PQ4Q6M5', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'SHUVDGNJJ1', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'RACKA3S2OT', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'V06MQQ9ZIU', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'QDCH4KS9OQ', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'AF5QXTQ7RF', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '8RX1O573CI', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'VVHSP2N00H', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '5IH6Q2PH9U', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '91VBI71SWT', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'PO5Z2Y0R7W', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'IIG67PVZ2W', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '66UOOJG81V', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '0I1C7E5LGG', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'AZHIQAA8HI', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'D79A3VYVRB', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '9EGNMX2V39', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '84KSGDGIFU', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '3MEE0KYL3O', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'UX2BL3GJ5Z', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'XRJP8MBWPF', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'JXW9UEHZNX', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '0FX13AP7KD', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'WIDDY675E2', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ZPK355HGP9', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '2NM2BL5H35', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '5CLWMRF6VC', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'BS780ZUAT4', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'AQT1QXYS1R', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'JPEDKV6L0I', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'GR2G7ER1CK', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'Y7B9F0PS4P', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '5NS079XQQY', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'W6175MUOB2', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'XEVKML1NQR', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'DKKDWXOT76', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '9BFX3820BC', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'M7F6K7TKET', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'BV6PTT3728', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '1SGUAJ1UB1', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'QXGKAJ21QD', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '34HG1NMSJH', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'FL305V7CZX', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '8L85JA3OMB', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '9895G5EHB3', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '2WPUWK4S9L', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'JYP5CXSBR1', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '37TOJY0BS9', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'H1CWH29S9X', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '5RFI9W4XT5', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '21HV3WVJSJ', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '13PSPV92F5', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'N8E0YJN52T', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'MCIBE5HJ3X', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'YPQNK42ZWU', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '7CP6BZMWZW', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '59QAF0EF5C', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '1O5S0KC6TF', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'V362X0Q9X6', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '8M1LEXZ4FQ', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'RHRYI6WBY7', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'CNKN1HD44O', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'MBDN0NINCM', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '8FBAXU4D64', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'CSQ6R242S6', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '3CDG5DT1HY', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'NE9WDY26A2', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'WKDRWMTT8T', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'VHJ5032MWH', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'P523S6V4GY', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'ZUJ4TI2WWD', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '7GU3PNEPR7', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '61D1CQ6W6N', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'V5FMCRS0II', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'F1NZFB7V1Q', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '0LYOALK2DR', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'JVZE0IJUB9', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'MFIFK72GDW', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '541M1P5SBU', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'CO2V9IJ8J1', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'BA2J8H72ZS', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '51XL8O0P1W', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '6K5NL9QFP4', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'X06G3EXFFC', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'AK0V4Y60O3', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '5ZXO9KQ0QE', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'T2YX4ELNLX', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'OKMTRREXPS', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'WXO3U2XV5Z', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'IHP4K7P7VP', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '261CSX463M', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'TNZL2C6SR0', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'I1OO49I6HL', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'ZQRFPX6CLW', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '89I68MU72L', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'D9WXU6GWIH', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'R29T5QQVMV', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '3JJCV4JX3V', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'B08TQXGI1P', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'MWNNRVRHAC', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'X8JOVIWN4J', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '4ZWKOPA400', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '80IN3T3TGK', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'VVJP8Y5UF9', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'OWEWHEJG2F', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '8UX14RQ21I', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'YQK2E1KG8R', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'LL5CLG72MR', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '0240HU5B5T', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '0V1K5EC79P', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '8ABDX06VRI', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '59FPL53M3D', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'RPW2J1RHBY', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '2NEQO8TRAT', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '1S1LT1QWQA', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '2I5EYEUY4H', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '8PIYWM6MDT', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '9EBX8T89FJ', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '1PAX9O1VL1', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'QO2GELYOII', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'W73H619MJU', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ZJJ8JY4X7P', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'AW2KBW6FVZ', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'GGO6JDME5Q', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'MQ3XSM06CC', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'LM7NHSLEM3', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'AWU8WZZY3Z', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '5NZRIVKIKC', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '4ILB1L1UA0', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '86WEAVUP52', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'RJOX875VLZ', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'G78U3FHU7X', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'WMZPCZI1RB', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'MUQ3K6004U', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'SFNQMUIYOP', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'PKCBT7DT7W', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'B2EJ21V3TA', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'HHF4FQUAOL', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'WMG5HYDJQA', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '04ASHD3G6V', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'CEKFEYGCK9', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'EEDEVGNLG6', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'IJI60MK0W5', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'OFSVLDWV0F', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'RATKTH05M5', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'NK96IC0Q7I', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'TLZ9O1KMYZ', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'TSU6CZWUNQ', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'DXNO82P0X5', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'JZCVT2QOAY', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'FC77X3Z86S', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'ROEO0A4QSU', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'MASJIKOBYE', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'AE0RMP4YTN', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '59GARLIMZG', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '8XJPVKLQUK', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'BGLK18KHEZ', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'MHBFDA2GMR', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'IAU4NKQYB8', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'F2PTKPYZW3', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'VS2ZY5B6FU', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'OAGTLHZ0CS', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'O5UO1W4VKX', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'DUQBL8B1B5', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'HQ77GF8EQR', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'OBBN665U5L', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'Y7HN8U27DE', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'A9N12P7RJ2', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '1ALZMWWQJ3', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'C9VS42QM24', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'V1VD0VL6RO', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ED90E69RF9', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'FWLOBWN2KS', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'C1D6M1C0ZI', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'RRY9PC5NAZ', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'D651PN6JQM', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '79D45MTD6Z', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'HT3M2E1P2E', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'KOG1PZTYNN', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'WTJ2UMNH5X', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '2PQ4IY3Q6V', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'YD0SX7MVHO', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '3GG89H39BV', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'D187H8EUDN', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'S5J3V5UXQS', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'VVT55GJCFZ', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'MVC2QFPVMF', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '2XCAYJQRX9', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'NEXLE9K2E5', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '41BNQ82W4N', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '6MVFE0PZ61', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'KRGGEEKC89', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'IRHB52QHAQ', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'RXAFNPEFK6', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '4IWCBAWAK0', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'OC6HIH8PLR', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'E55FBKDLE8', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'WAT6UR02WV', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '0LAWR612ZW', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'QPGVS9IQN2', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '86QPDZ6UI3', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'KID23I9ABY', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'P5J00FME6B', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '90UA14HGJO', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'IEAJDM3T5I', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'UW7468UD8S', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '66FL1KTBLX', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '7R92WJQK73', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'M9H5QSOTYD', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '5JKNJD1EGT', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'E33RT5KC9W', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'VPTBUI2C3S', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '121XVCQL3J', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'URV5G0ZRJY', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'VQDFS8R2I5', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '3REIXTL09P', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'XKCKE2KHUR', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '41HALCWYM1', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '19NTBKRXUQ', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'SV3HVUVGOL', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '58CVGFZGXN', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '6JEIRH5UF3', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'JV3KU6HD0G', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'VYQTOKC6ZV', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'MA56PW72TN', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'AUBG29WDQB', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'X4OJJR0OJS', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'SINI6GAI0J', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'CPNKT13XZN', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'S4K9MCVM3F', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'RU2IZYM9T5', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'UEWMV7O8O5', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'T35OKZ49MJ', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'UVWJKYHOH7', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'SZ5IRIK3H2', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'OBCXNIE393', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '8GRTS8TSA3', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'E0DQOMQM18', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'MP3N9REJJS', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'OX9UN09IOF', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'E3H9W9O0KL', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'W9STGD4F4R', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'U44JYTAQ9T', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'QH0BFGXAO0', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '9VYBHYBCQQ', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'GUB2Z6WSP2', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'PLA9OQJUND', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'I81ZYBCCRZ', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'Q5LH5OWEVR', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'GIF46MO9YM', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '3RNB5F2K7U', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '2CSMV49NZN', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '0483VTHDP6', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'R8IAQK46P9', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'SZREWE7LH5', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'SMURG2PBS2', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'H1PRME2NER', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'IBL3FRH65T', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'O5X3F0NIED', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'LI3IAJ1TC1', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '9MGI8FGTUV', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'GZQUPTXA8B', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '3P65FAAFLV', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'CKIY44SXY2', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '83CGTO7XFI', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'HX2VPV4P4C', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'ZWU4R9A0HV', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'CP1N0PYLNX', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'J9TLO66598', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'KYZWCGMVWZ', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'PVPMUHSON2', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'B0JOK19ZLB', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'WXLK1UM95K', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'EDVS3BTVZS', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'HBKM2G8KIP', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'LUU55RTO6K', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'ZAFBL4J3BM', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'XB9CT0IEPZ', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'KEYC0X764Q', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'KLW621HURH', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'CEQMMZ23PP', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'L744EZCYRD', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'IGEGYN0IT4', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'LEWYYLM7YT', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'F31K78897W', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'QG31222N9B', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '3C9MRZHBOR', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'L08CUG7060', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'EN6NEBTALU', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '8AZ79P6DWH', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'ST8CEZQGDR', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'E4SFV9LVW8', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'AAJU6TJ1MR', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'IUD9HQM6Z3', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'F6CM0VM6QC', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '9UTFWNZ0UR', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'FIPEJFRVRF', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'DE9TPXMIQD', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'IP7STYS0MD', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'KCW1PB0NII', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'VF20JJBFBT', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '7J5ZUOF5HU', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'T9CQ3FQ28X', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '1QACZKCR4Z', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '7TACWC3QAM', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'DKD92BH2P5', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'T6PGO2VKKI', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'WQJMRNBQZ7', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'YWEI7CIKCF', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'UECP0ZXXP5', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'X7OI2PYFMZ', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'UMLMYQH3VA', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '7OQUJ8IO8D', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'RQOPUD94LO', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'U4ZWD4XGNP', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '016VNXP2BP', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'HCJ8YDGZD3', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'DBTP5S8UBO', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '7MEFIVW86H', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'QUZ49KYVB8', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '9HGBHTNFIL', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'YIPSX3O91I', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'RM4NN8YGMR', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '5OWTYWRCJ2', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'WNSHLS0GKE', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'IKMJRXPX9Z', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'EGLUPNARFU', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'D0S3OGANNO', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '3JSFNRH93H', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'FWE0UWXS9D', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '0VL56KCNZZ', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '278HFCW3KY', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '5JU1UDQROH', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '0T70E18RY6', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'FK44785DL4', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'TP9WI7LM1L', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'UTT4T2TD90', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'C5GV3BWHZI', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'BF2FIDJWXW', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'W3NP02CS2O', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'UYSJU65VMD', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'U98YZXTUX9', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'DHCGZ6LD6V', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'AB0OFFIMYP', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'VBDA1V5254', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'CBJRUONKEU', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'NE8ONXWBDN', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '4ZACSRG4ZJ', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'MNVM80PGOG', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '6100YHVZMU', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'UHAJ7442VF', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'QQ9BHL8DES', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '39X6ONF0ZS', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'QYLAD6X5Y3', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'K4E0EWOWYH', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'GTZ8IB94DP', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'JG8JU2ZJFT', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'AOE81809UE', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'SJQBU0J3VH', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'V07NNGMIIW', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '7CHMLSD0DS', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'X1T5ZASWDJ', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'JSDT5ZHNYX', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'OVR134BWN8', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'B1AUSGH0QK', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'ZAV05T48NT', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '12QTL6VQJA', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'VCEP39NYR1', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '3YB2N7T9P9', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'RONLMWT4XY', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '22XQMX7EQ5', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '5P8BPW2857', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'MU461ELZ6S', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '5F8HKZULSD', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'EMLC7MBORM', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '908WV7KYLL', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'Z5714H8H26', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'EP8R0I4NHM', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '5XR4EZP502', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '5U17DCHJ8Q', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'PJ59YY2Y8D', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'JIN3G7MJB6', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'EGWM1S6D05', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '7O26ABDZT5', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'H5TN9PTT33', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '8ZAMKDFIME', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '12Y87XE2HI', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'KYPPYONVM4', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'DPLYSJQ7WG', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'RR3UIB9KUV', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'XGIQ40WPIB', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '4EGPZT1CHT', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'WVL79MDDOS', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'MOWRY380AZ', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'EUSLTG1SS0', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'V1K20F1U3G', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'A8ZAQ51VDZ', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'DGON0LBEF2', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'FKI3XG7Y8O', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'U8OXME21E3', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'TAAQ9FZN2E', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'CCOC8RPPR8', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'AFNW8K8PAE', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'JLEUVVLO2C', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'KSDCRX8T0V', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '9QBB23MW7N', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'FU5Y1I28A8', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'BHCOLAQ9WQ', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'SBTJ27LDM0', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'HHWHWCV02N', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'QO75D7261B', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'LJ0X3IPPKU', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'ATCMLS0Q2E', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'WW1CGH57CA', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'TD0TT33LFR', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'S5456SIMVF', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'O031RV22KX', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'NA4RHUZFKF', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ISD74Z5YQH', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'QVMX2VTBAN', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '1S3T89LTTD', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'NBB3UNBG1X', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '8MT4QQKF7L', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'PCNZ0JDOIG', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'LF1N3LFRYZ', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '29EMXI7IHK', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'R3T7ATG956', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'UJFECJRURO', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'DVSSEDUP0F', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'E7UG5FJ946', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'YB6TPW3W30', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'IC0EVMH60N', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'OF5W67RKMJ', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'LL49CF5XL0', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'JB9IN7UMTB', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'MZH4YTSOJ7', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'R3WYUTXWV1', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '6NIXBUK7F5', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'W3K3P7KEXQ', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'JMM1GXZMZ0', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'J8PW4Q86PL', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'OY58J8QANT', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '1TGG51A17V', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'VANGAUFKB6', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'PVFOPACP83', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '7L82O6VA8I', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'IP2S6OOFT4', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'PPM72PXR5B', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '58URNMRFCU', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'Y789VDN97W', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'TVGD78WPDF', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'FEAYLIKYF1', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'THIJ96KQAK', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'HJUS5YYXYI', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'DSYQC4U2PA', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '74G4MTKXSQ', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '7KLVT0LLHX', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '73GEU8PNL4', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '4OGQTJ3W2W', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'OXDZFGZJZA', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'LRZA7QIW6V', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'HMHY3EW8XU', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'OE0R3SO78M', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ZJNC2GTZ0K', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '8LCGA51U96', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'RNB24BHQT6', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '3E3J102T7O', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'MI1TYFXLPK', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'FS4H9ETVG2', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'MACLKPG7AC', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'C8VKKM8QNP', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'FPIVICHG3D', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'C4JZNH17BA', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '1RDEXN4BHE', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '8WMJXAD67O', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '8FB04BUI5A', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'KPZ728OYKP', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'TBPPK9OT90', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'FGDKMKSWDT', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'O0LC55N08Q', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'WDYCDYSXKT', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'LS62UHGIKW', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'KBAHWSBJV1', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'FU2MVRQTRZ', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'YPOL2UX6CE', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'UO98M8OS72', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'TJK9B0VNTX', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '9XEUOCTRIH', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'YBG1XRVA09', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'AQQHEIWNCJ', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '9VW9HAIGFD', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'DVE1J4YKQP', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'JD5IR0NJA0', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '7C54S2VZQ3', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'SSCGOX2QIW', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'YYX552BL1D', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'W270G8V7BO', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'J8EPO6KYQV', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'OPK3MR4TT2', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'NHJ8R4KOB6', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '9T62R3LMUU', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '9DR6LXRQ95', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '6P25ZQ6DHC', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'JCBBPPRJZB', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'XELNLVU9GL', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'JCKQX35EB6', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'IYB6D16NJY', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '2YKLP11YQ8', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'NZ6AI3899E', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'AVBRWBIEJA', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'B0JRPB1BCK', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '643U2V5YPB', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'Q83MXNQSC7', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'XB6W3U61G2', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '9SUBVMG1TB', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'VMD8GP1HCQ', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'ZRG7Q68T8X', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '16NBMG72QY', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '0GJA0YF1H5', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '926L19Z3D0', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'YVBZ7SDCIR', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'V7DZQ11JER', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'GXF3FFUWOO', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'VR7ASU0UK6', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '5WKJERXLJ7', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'Q1BP9Z1I8K', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'W8DD4WGZZZ', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '6KR9998BUJ', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'L3NZ7YMD45', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'OCM1PEZLFW', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '99GYKZF9DH', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'N8INFYT1ON', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'LUMZPJIU1E', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'QHJX8W179P', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '1A8KJQRPU7', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'PM87A68J3Z', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '2R35CEJDYU', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '8Y0IOEPLCH', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'Z8K2LU1SHM', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'GHBLE6V20P', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'U1S3RUK10G', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'GRPXB4HN3T', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'YT4I9SEAKC', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'Y1IZU9X76F', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '0QY5GK6M8N', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '5I7U7RG6G0', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'RJTU2MPRJL', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'CLF42EPE34', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'YEVQWCQOJA', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'CCWGRRUY19', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'WVGP8OH3O3', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'J3P1T1PHR5', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'MAKP25NAJ3', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '66T0D37FDI', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'ZWHU457Z50', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'WE26ITY31Y', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'X341JYPUZS', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '0RF0OKWWM9', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '1OSO2818B0', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'JP5PZJTA0E', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'TDKEHAXS3I', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'DQ5HR00S4B', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '1XY2FDLYQJ', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'SI0KBUQ8B2', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '3UP6GJ7097', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ZCV3T309ZQ', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'WBFYND5UHN', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'C2MVQZFDGK', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '20A1QEUGBM', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'SEE1W2HCTC', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'T21IHT79BZ', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'CG210WBODI', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '056QR8B2VC', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '0DORW5YQF2', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'OWX3USAZUP', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '94P1G72J1A', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'MET9123Z9Q', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '5MR2CA1205', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'NAF6CPXFJA', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ALLG8RR7TS', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'VV2ZHVW7TM', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'XQ4ATOOE2E', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '1LLASHNIIL', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'GPR4J4X9AR', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'PWGEJABE86', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '7NT90AQNLD', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '1EUUGUWKVT', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'O2N9G3EQVE', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'DDPOJ9X18V', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'FM472365FQ', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'HV7O7Q3D71', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'CWT671I5QB', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '6YDKLEW10U', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'Z64SP31AG4', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '0GFX00JZOY', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '7O2NATM2SG', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'QE1VEZO34I', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'O1Z6NRD1X0', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'L3WIFGK4QB', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'QFHYVUV3XG', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '3736EIQ412', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'O7F6OZRIGZ', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'AM1V2LQ7LG', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'N3JOJ0U8WW', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '3UFRCO88RQ', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'KT40SOS7Q1', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '4Q53Q3AI1Y', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '1QE95PGBXT', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '4DFQYZUGP6', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'CD2A6W9J73', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'QTVKQFJ64N', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '4YJJDHH0AN', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'YUH2X3GQLC', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'EFCHI3GIOE', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '3XKN6HTACQ', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'IIPYU3QMX2', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'GUL8975VLU', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'A5IEQN4BB7', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'MX15GYYJAS', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '3K7F44J7ST', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'NERMTW38F1', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'L94XOX6RON', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '3L8972D866', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'UPMGDNNJ8Z', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'BJ348M6307', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '4XWEPOGRGL', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'K9KFM4H96L', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'PHLVZ6LJL7', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'Y8GOBH60QQ', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'W4VIVRNNVV', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'GG7VEO1GBN', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '941Y7UTDBL', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'ERTTJLZ270', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'YRNEQF5FMT', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'XWVQLO1F5H', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'KW0YI2KWRS', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'B3ZT1EUMPS', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '793OJJR5QH', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'O8OGUWZC81', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '7XELXIPED6', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '9RCFBCRLBO', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'ADMT8R264Z', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'KDNCKDFN74', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'WXT9E6CCSR', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'T81K8590Z7', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'MYGQ06HU87', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'SFIS8MBEBR', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '8RGD3GL75N', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'SXIJC6Q9W1', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ADS2HC3ZZD', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'NL740C5MPV', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'KKFL6QUH9R', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'JNDVKJ2NHR', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'KKWHVHYTFW', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'FSRB6RN2C3', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '0RDYBH1UJP', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '2KND9IGM2E', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'V2XZ9DPS18', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'GWQJB8XJYT', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'YY9DZ4GI37', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'R29X4JST9W', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'ECDVRDB2PY', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ZM5S60AEVQ', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '2RSO15H61A', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'FUJOP9I0DD', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'X6KK61J7OA', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'MW83JM15QH', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'F5QK5K99C7', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'UNNTMAK9NS', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'GHA0FWPBCN', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'YPC1QUJLEZ', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'SB6LPE87DS', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '5R6QUZ271E', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'P2KB64DTF0', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'N8HK0HKJ6T', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'I0XXZAROLZ', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'HMH9S4P06D', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '85UWY2RS6T', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '8697UZ2JYK', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'Z9BJ25PKF1', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'AGZ999OUXW', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'Q0Z2RHOJCU', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'YZTLWFOZI3', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'S94E6TJE5Q', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'BHQ2E4VHP2', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '611XCVSZP7', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '5TQJ4X510J', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'EXUC4V90AR', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '6UY93N4RDO', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '6WC1WGAFIP', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'IXW32NL25R', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'IWGZSDUBTG', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '99IYI8TRKR', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'BAO2FPCSMF', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '99UQ2RO0J4', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'M372G898F8', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '3SS3CA2017', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '1F8WFD82I5', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'BWDJYM2433', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'WXCYS2D0BX', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'JGVJXC58PM', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '3CE7QQS5XP', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'GC514MH6X9', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'H4UVJ70Y3Y', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'NR6M01QBMO', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'M6GGUPVH7K', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '64IJGZ1VFX', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'JX36D087G0', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '7YL47NON2N', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'AGC8JRZ0T3', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '7X32Y8C3DD', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'S9HN95L1UM', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'JP6XM95KKY', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'G5W8BQ2ZWY', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'WE3OBYJUJO', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'KGK7V01Y7H', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'M46OFOQSO5', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'DTJA9RKO5W', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'PCN3XJNUEW', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '7ELYQ14CUF', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'S3XDBZU90O', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'DMLBIZQVRL', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'Y51RM9FU3W', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'I7I53G8KAX', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'QRC7JUHHR6', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'KQFMXNAPVP', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '7NS1N0LJ6J', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'VPFSI3GNBP', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'R4EVAT5JEQ', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'V0MSBDA6U5', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '2Z2J3YVFXH', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'KAYUDHDSTT', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'UVU9IHA9FT', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'TRCPJJ66MB', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'T2VVALTMFO', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'Z8OBB6PNZG', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'ECBH6KUQDA', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'NX5SC0L4ZL', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'AHVCP94PKF', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'GU1MZB8YN9', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'BV2SF96JLX', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'GFT6ZWUZ2Z', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '9NXSS4AINJ', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'VZS1PPRAXE', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'E1K8NOX3R3', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'XNJL7ECQGH', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '81QZG0L1OF', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'T5DMVIBAEG', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'AKO72BOT36', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'CO9BIQJWDO', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '38L02IJEB8', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'FTDT5JU30N', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '395PK9Q50N', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'YXARZ9TJ0C', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'NN86ZIN6YC', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '86KUJ14VIG', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'TELCX0KT93', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'ETTNR6DOPR', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'Z2QTY1PU57', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '5VRAQJAKOR', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '04D9Z4Q2X0', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'UYB68YYNPU', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'VNPL1X0A4N', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'NAGYWOMN5N', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'NI4MFORJVL', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '9KP9E80O15', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'EDOLN29ZPZ', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'A04ZONV43K', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'DSGIKBLYXP', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'IOJHLGQQA4', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'EBH6QCDBUC', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'YL6V2MVZD2', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'PCZUMRQPBH', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'I92X8NDHDD', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'S5O5IN4RHK', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'HVI2CLO4ED', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'H8J224FPOE', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'QZG0XX9DVS', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'DIK6P6LI1I', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '29H7HA0671', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'RY1RTIK9HI', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '3B9XSB0LRQ', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '70L9M6V0LE', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'PK9HTTG1D7', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'DDU8X7D55T', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'MPOZ9030YN', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'HD5O9CGRPW', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '225D7LTHFA', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'AHANMSHU1H', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '2L4G2BL6L7', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'PQQAD9VGR2', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'NNO23518BQ', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '9BXR2XM8Q3', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'NEIWEX3HJE', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'P0FD63HWCA', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '6T0K9G0QBI', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '2X1EAK7TPZ', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'F9DP2YLN8A', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '23D0382ZTK', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'VFLZ5EHXK7', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '0JLDTBHVI9', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'U8SOIEHVR7', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'ZWOWFQXKL8', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'N4DXY1F1RK', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'HURSG6AWKG', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '67FRTZMDJ7', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'R19E9LM3JU', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'Y18KGLQBWF', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'UZUZ5RDBG5', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '7UCV18M1P3', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'JD0YKS3FZK', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'A1AOQ815WT', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'Q5MCSEOJH2', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'HKKPQ4B1EO', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'F10K783S2G', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'HS9HWMUMMM', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'F4DHQIKVLQ', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '163HX1XY2M', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'LI5KWHDAUJ', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'JIF15311L3', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'U2KVCM9D9G', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'OJ8ZTRG5DH', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '5R82Z0N7NW', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'KB1BOY7VSX', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'VKNNYSDPUZ', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'XM00INGG5S', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'B2WYI25QPW', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'H4WP7DU6P1', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'U1UBJDRSVR', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '8QVTP8D5KD', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'G7K174PIGI', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '787RKNTL26', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'TPST66NYA9', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'BRJNIZA1XK', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ZL3ZDPCLQV', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'VL94GAMJLM', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'KJEV6ITT81', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'KHTFHPM8RZ', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '3OOPR0TQYH', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'LTQ85AC4P5', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'BQ4QPX1CFU', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'E9FLAUSB1U', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '9P4MBZLDO6', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'V7JJOWPDVB', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'LK7FU2DVSK', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'VVBE13MRXT', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '0AIAKZ0HAC', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'X1ARJLOUZ8', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '08V0W211EX', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'L571OG7GCM', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'N2SK5E12IV', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '028WRJPDT7', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'ZQ8KE3S8NT', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'BGUOOCAHFN', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'V3YMIVS9PR', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'L2ZJP4W8HX', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'JWNLFIQCMH', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'P9K67N98QJ', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'H4Y90TWDZT', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'GOP4PJ0UMC', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'QF5TJGZT81', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '6A6MGT556B', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'O2WG12KVV8', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'BQ0LXMW4OW', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'HUO5V1OH5B', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '08GGOEOYI8', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'YOR9Q0FB85', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'G8PFZM1GET', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '434ABOBJTU', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'GTOUOIM78X', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'A8IZI104KO', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'YK9IOD5706', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'F8YIYI0LO6', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '9VXKIO29QE', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'PR8T5LQCC3', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '7G1VYPNOJ0', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'IXZ4358F6R', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'BN9T60ZBB2', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'LMSK8NTSC0', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'LO3FYIMIB0', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'N1G5LM90SM', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'MTV0EH3C81', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '8A94F7KUOV', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'WTO0GUQPXG', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '96LIJESXWO', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'MK1GKYJF6C', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'H2KFVVJS50', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'Z188OJB1F1', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'JKPKOFCZS9', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '6UZKX8P54S', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'W97ARL3V5Z', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'RKWN5XI2OJ', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'NSS3AMIXCW', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '4H34HMKS64', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'BLI37TDACV', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'K62VT55OII', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'XL1YE44JHE', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'E06IWFKJ2W', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'EY4R38BEZT', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '0OJ01ZFRTH', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '98YFA5MGS7', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '0UNYOMS9K5', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'EOJ3TZVGC9', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '2UV15YLSJI', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'OHK966X39K', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'XTSFYDGJDT', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'Z3UCGBSP80', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '9P1YPLF86G', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'SI5MZ2J5CG', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'OAK8ZRK8MR', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '5LT2LNHF1N', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'WUCQV1AFRT', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'QT52KVBDAW', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'JQD9FCS9A7', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'D4CXGY5MFZ', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'IFXQ9LBLTV', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'Q7ZOKQFT8Q', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '9FSQS0XDOB', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '921Q1QJNEL', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'LQW942MAFD', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '5EZJOUWKJK', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'YH2D1HTMTW', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '7Q5JY0XSG7', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'VYRZZ10EYN', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'GG36QQF2A1', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'QH9UMXL1CM', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'LK41LP6JFW', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ATU8BMUWNC', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '3QJ48EQ116', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'RAZVE21IWE', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '8QF7O70SOO', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'EBGU9I6ZTC', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'G9SEFBTGXY', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '7GA11OIQNK', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'I0WQJ3FFQH', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'DBP86YKRAS', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'DLDZ72RK81', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'OOVLNM4A6F', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'ZFJH9EORGC', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'YG80JUR3GM', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'IG6BRP8KRD', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'L9ZCEUWKW4', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'P1OE420V0M', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'QNVSTJZI6N', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'N6MCFTP3H5', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'ULX3ZUMKOW', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'K0HQ66GCPK', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ILG0XHD9R4', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'DU9WJRDL01', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'W4DOV9OE98', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'A2VJL4Z73Z', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'NAX6S2QQV5', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '9DEDUFRKA8', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '97WD22O56Z', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'UZ8W8YZYDW', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'KD29939X4Q', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'VJLO2175IA', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'DYRCDVQTAC', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'R5JAFGYI4B', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'XN8SRGRX3N', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'SK90XN1AI6', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'LS5F614Z7D', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'DH6H6NB00H', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'XA52ARL8UX', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '6V5O4PGUZB', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '765WN37TFN', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'UZPJL7NT8X', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'PVMHBSSY0A', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'YOUWWIMTVZ', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'RBKLD42BLK', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '5EXNUQ1M1N', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'HQQMCU4IF8', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'JNZ2QRLSPE', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'NEGVF1OOSN', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '6ZGNF4DBBP', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '6706HG8FB0', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '7XB75YE1BK', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'OQ4EC22JEW', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'BFLF4IFPK3', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'AS6C8CPZL1', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'Y6C5HW92MC', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '1UGH97MBWP', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '0BTBBW2RKQ', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '1J800A5G5Y', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '58UGG9UL86', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'BYYPUFPWJP', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'X8NG9WRGEU', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '2XD0U1PQNK', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'I6V4AJ7ZRG', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '9JIQMH5E0Y', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'T03BMGPTTD', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '2VNLRXXE55', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'INAW3Z6Y88', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'VGM7KGGVNN', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'Y6NEN00GI0', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'O4NU2A9HDE', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'H2PPUIJHYB', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'H0B3H1FC7W', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'NENCXCTOWS', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '332RRFWW6T', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '333PBFBVFD', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'JS0SIL3E93', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'VQA3OOLKMU', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'RUVFOX5ZFP', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'XTRLV6G5UR', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '4AAY5QGQ07', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'UMNTLZ0JTZ', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '1JFG756P84', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'X971UCEB0E', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '8MTNFFUCO3', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '6NYAM0KNMY', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'LJPXHVPS27', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'COH0EQ3ND9', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'UZLFH251C6', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'QI510OK393', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'NKCIINZKOB', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'UMG8G6OALQ', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'ED15Q4TK5T', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'DWVJ7R85MK', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'N2C1OC9WU2', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'SQ01EYRRUX', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'QNP50B44Y2', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'AZTEE59UI1', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'AGPNLA10V4', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '8K8DXPT5RC', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'PTAJV09H32', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'BS3ES987OR', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'NJ5IIQAOG2', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '5WE3KXUFXS', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '5BGK94KIF7', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'YHNGKLYBAG', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'CC01133FSZ', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'MA0JIB6QTN', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '0LH99D8KJR', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '5QD108VMV6', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'LQRWNP82ZW', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'QMYH77ME3W', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'UV2KNKPS89', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'X0KQ7A5F2J', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '0BA9BD3WZ8', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'LJ7HHZC7D2', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'SP5LKR6X7O', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'LB74QWM8ZV', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'CHIRCX8OIO', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'BR6VM3JB5X', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'WAKV2DQQGW', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'B67LWMFR2C', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'RMEGEN134J', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'Q5CEPDZFDC', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '4O2VBMC0DD', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'SMUQ82BS89', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '54IEVNULS7', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'BY8J1VOETD', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '3GZQHZF3OF', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '3V6XYPSOJ8', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'E80EE52OVT', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'LIOULFSC00', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '869XMW0HFX', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'LXI8D58SO3', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '6QSYF389VC', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '78QPOSZ09T', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '7HR9OGHCZT', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '39MUUJSE96', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'JGXZVYFYSS', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'O5BBTVMAT9', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '5DKJGNJT1L', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '6TMPJTFZEQ', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '1RDII43DZ4', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'XF3MF4NYBA', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'U8CCZEH9YK', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'QJCBR07KFD', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '3KMTKPOH6V', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'PAMOCS6BCM', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '0JUBK1FWZW', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'RUQX06BSDU', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'ZU4TL1S6XA', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '53YWABTBY0', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'ZQEGI3KG0I', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'LOWGVLVCU1', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'HCE55LMUJW', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'KYI1BDIJ0Q', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'ZIMX4SHOQ9', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'O4D4GMUI3W', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'M8V6KYHB3G', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'YTYVIQD123', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'QHPKMFX3PW', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'RQBGOLJCER', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '86SSWUSWX2', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'IP7IHCCQBK', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'PN7KAD90Y3', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'RZ5J5T86C0', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'ZYWPT9X1X1', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '51M63D5A5I', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '26068HUOTW', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'B9B9ZW9NNI', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'OVYA3JHWR8', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'MJLYD83FE0', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '7M8EUC4DOT', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'TB31D86ZUX', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'A25SVHHSPA', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'VG1TC5W0JK', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '53ATMALRNM', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '76DA8C0N1D', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'HBZRDPNZL9', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'NDYDITCL5C', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '310S5QIYCC', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '1YER424P6E', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'XU9CR34Z48', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'PIB3OR3MLY', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '2H0Y7FR1ZE', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'CHLHQAFBD9', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'CUK4QAF7VM', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'KJHX1LEH7C', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'ESTJXLFS33', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'YT3QM2745D', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'WYXXVS0GEV', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'UBIFO5VQZL', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'LM1DAJC7XR', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '1IJ4EAY6P4', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'YB515TXD44', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'AZ3A7JF5JF', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'U9GHH2GKPI', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'S1BYKSQPB4', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'JK1Q9REVEK', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'OMYSQZZPL4', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'K2D7AS3J8S', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'LD7G3SCREF', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'PRXHX8LNQG', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '6K9FN7SNEI', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '1PUE5JIJZV', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'D5UWI4IIDK', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'PMZV00G68S', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'D77V3U8DYF', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '69G20BRWCI', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'PWEWHCU3V9', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '4A7XAC1ZHL', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'CPNGSUELC0', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'U7JAUAUY9A', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'TZXHDSKH21', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '0ZNXUNXOU5', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'QABPF5KOG9', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'MUX46SS3GH', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '7C61Z9LWXQ', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '3R6R6JP108', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'SQMY53YLV1', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '37XNTEST3F', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '76DUO1LO4G', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'X44YWXM35T', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '9MUXO3P9YG', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'OC5LKIGBSM', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '1XIKBHB5MU', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'S64R4RWCAS', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'B343NGPTJP', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'JUSP7LPKU5', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'NL6DU8ACBJ', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'F6RC0Q05UU', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'JKRBIXTX2M', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '57CWQ6IQIP', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'KEVAYN09S7', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'DYRJF1T3FM', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '3U49Z3G4QN', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '0L1UEFLTTC', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'JQC3K7ZB0A', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '97NSIYHT4B', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'UVRDEZCON5', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '8SE8CF5R8K', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'OSM2V9CDBB', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'IDD3PGDLD0', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'D563FRU3G2', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '3SMGH0F378', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '5JP4YCHL8Q', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '3BI8LXC97D', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'ANJS8YIXE0', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '0H5V44DDQD', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '9VOF4MPBWO', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'MXYEL38DLC', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'C808WK3RQV', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'CF6F4YE4IJ', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'X1X6ZP0O65', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '9Z8PE5WOVR', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'YJRXJMSQ1I', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'IX8AGT8P29', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'INXGHVL712', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'E7T6PX7XIX', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'X3EE3X0WO7', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '41V3JBRMML', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'KAUQO6TMJR', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'Q6YQKC3UPX', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'HBZGU028C6', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '7I5DEVF1UN', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'CQ24WWD68S', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'DEKAISIFFL', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'KJ8C8X1WSQ', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'PK28Q45MO5', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '8ZBBG9P2CH', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'DOK44F2C0X', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'L9X4NQMNC8', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'OCWV851219', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '5R2ULQB06J', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '4S0SJZKO8M', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'PX43CL7R2B', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'NJYJ7G4KBB', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '15W6A9TSUR', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'KFH5KKVH8Q', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'ZUK16MOTRE', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '8VR2V8A70O', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'E8DOA7CVKB', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '05XF1WVFKJ', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'M9VC91RAJT', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'D65UFWKF6M', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'VKXQHNSL8W', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '9DF7PFSK0D', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '588OKZRUED', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '0ZK4QD4T0R', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'UFKHVFLG7V', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '4QCOI1RLG4', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'PD44W8U0YU', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'C29LJUVRU9', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'VQI5BROLBL', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'C1WPLTX5HW', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'VNG8CR3345', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'NI1EU4Q16V', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'QU4FF77AGM', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'DGHSNPN69Z', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'TLLJ0I1JW1', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'JUM8HTJ4CX', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'LKSFGSJL0E', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ZCAMZ46L11', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'XD6LYTTTPJ', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'IZ3HKMJK7W', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'CTVBSOSWW3', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'HKOL89XHEL', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'XF5X8ZVGLU', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'UUI2DDUY77', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'OJ5L8I2YKF', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'WDOTXUHJ9E', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'Q3E7K7NFI0', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'K05DJLIF35', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'LXUQJHK1Y5', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '8PNDSAKNE0', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '8UKUHZUEHP', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '2UNPWXU1OR', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'G3T6WD5OXC', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '2RAC5BW325', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'ZC7I6HXQIJ', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'I6ULTGFJSW', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'ZLA9PQA295', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'K8RKW5Z2J9', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '6B9Q4OD7AQ', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'BL85ZKU4ZO', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '9Y9RYF1M4W', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'Q8Y8X3X12E', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'V5XGGL5EKT', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'MCN517FG8D', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ZJKBDOZ8IB', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'OG4SCTDFX4', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'J0K2Z5FDKT', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'K8AYUO4MTN', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'V2P10L214W', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'LPXMWV2PVJ', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'SBBAVZM54B', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '6YD39SEFTJ', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '6GG2DX3LT8', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '30J61H0O64', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '8ENOQ5CQ06', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'IYSAL85U8F', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'ECN87IS2F2', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'P4NNK3HLQJ', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'NK6GI4CDEM', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'XUCO23VKEE', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'WV2DXCYJR5', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '1KP78AYUE7', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'NPRXTMY60I', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'YAZ8EXUMST', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '2XRMLAHOID', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'HD1TMA5QXV', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'RGYDVDF8VW', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'Z27BI8EV0O', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'NTQ01O1377', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'DEGTF69PT0', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '0P6XCTYUVM', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '9FYYE6U8DR', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '5AQ8J31MO2', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'I990WMAHIR', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'FTDWJMPPNY', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'ZSD1HFKCVN', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'IEV0TZOF6R', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'FJ2BXTCP4T', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'M7J7540SE9', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'OUM9OQ8AB4', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'KETREKPC8F', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'MTUA740GU5', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '8T6QU8DG3Y', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'CBGU2GDSD1', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '5LZ6QMBHVO', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'ZE83TG7ZSS', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'NP0PLRYUEL', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'FGZL2WGAK9', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'FOYNB2KY7H', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'SQQYWJCC1W', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'FSYQKI3PFH', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '2M6GWD68SI', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'QYAJF3CSVJ', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'B7GF1UDWFM', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'Z5EH3GDDUZ', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'XGQJMKPPEG', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'UC7LUIDD6I', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'CIA2BP3475', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '2Z4IV18NSC', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'SMAC99WY6T', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'K1B799ZAW4', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'LKTEANUSW4', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'OZPSSOVU0Y', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'NBD0JJNT0K', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'F9FTU7CR6B', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'Q041DBPVYE', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '4RCK3MHXBP', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'TGGWYKZMX1', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'J63HG2KD42', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'OM5LXTPJN0', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'XIFXBOTYS3', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'CB9ABGZ62S', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '0N0DDFTYAJ', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '4N0SN5ZIA2', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'SBXWT18DE5', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '3ZYCJT8G0F', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '066XXRD917', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'K7P8QTEAC5', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'CIE2YZ3PQU', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '6ULUD1XM0H', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'BINH1L8FWN', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'AM7SEVJNRK', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '40SQE7EFAI', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'XU27CMOPA1', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'SU83PEZ21F', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'RRWRF7ML85', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'LVRHR02U4L', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'XQ0M10FEHD', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'LSJQ2RVG3W', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'H2MLWAO36P', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '732NR39VW9', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'P29078NEL1', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'DWXBH8Z1MY', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'DETJXO92BF', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'NTZK2CMG8R', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '5Y6U4ITGFI', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '79ZH4F1VC4', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'WV962PIOKZ', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '0LOQQZCA8V', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'KNN9337ZND', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'RKD7O8WQJD', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'DRVFA9Y84Y', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'I0AICR2SKJ', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'IMS9PCTXA8', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'VAHO1KKHZZ', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '2FZPRQ8BV2', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'F7OD21JSYO', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'HT7SJSOMTX', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'YWPI0WHYA4', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '8JK2685Q6C', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'H0YPNZLZ1N', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'YGSMSD7JHV', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'KEOHO1RUZV', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'DY9US0LOV4', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'TJ9FHWHJ0O', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'P0XGFNO7HI', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'L353V7NEKU', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'T8O3VRPKDP', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'NRKELD6UHJ', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '4EFQ2B9JW6', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'IVB8DH0I72', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'KD09LA3SQJ', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '5DXLR8NC1V', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '9GH1A1PGPB', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '2XS6JKALGU', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '824UZO2SJ8', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '3BXE269D3V', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'Q0L62SECFC', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'F6BHQ4WLTH', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '7HJK1HIV4V', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'ORADBYEBLB', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'DWXI2R4QJX', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '6DFP3HXGWB', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'KLQXSNTNRL', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'WWADBHXPD4', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'E5SIJ0ULNX', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'IJMFCP9OR4', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'T64T39PYSC', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'WHH4CV4AFD', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'IJ89G915RK', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'KKK0EBXU5W', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '31TAEA3QMD', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'NZV5NUOBXJ', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'QOQYJ6Y4I0', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'K0YJ7SZ56K', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'XCEE2EY3EK', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'SAD2LICMQM', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'SXUD6OWX4V', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'YOE0BO9KMW', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'YI0ZFWPG9V', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'IOTYM3TTB4', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'VQWQ1LY82N', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'WNQF66A93T', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'QJU6XQDMW7', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '4D4L90T5KB', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '1DTOLUJ830', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'PJK1XYM1ET', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'AG28I8QHJT', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'QH5YQXUXF8', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '88BWULN5FX', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'EVH1FVXFSA', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'B4P192W897', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'QDPQL1TORZ', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ZRACN1A3M6', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '4J5X657UZ7', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'Z2QA8OOO02', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'HPNCGXMI1B', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'DHVC1UO96E', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'Y9QM9YRVH1', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'BSMB9EFPEC', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'M9F0VUB98P', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'L5KORD3L50', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'YXP5N0MMYZ', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '1JNH7PDHP8', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'YCYTBCTU2I', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '0XKMY21CI5', 6, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'AQMHG3VZOM', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '7942ANIDWK', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'P6Z71UJ64B', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'ZMSUA2P1JN', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'RALXNWE2C3', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'F0OK60D625', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'XGVVYGZ8MV', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '0ELLX1FOPS', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '101QC3W0L9', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'MHFDUJC0FO', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'H0W21ISOB2', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'QNZ641JH1G', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '8G169WSY32', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '6WTJQVW8J4', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'U8CN75VFHM', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'FA5UBV89F0', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'CFLH6J2HC3', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'L3LYSDET4Q', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'I7H9C3X57B', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'PE89H0OWPH', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'EG4DEBD31E', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '1QE642CLD9', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '1POB4R1LDU', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'WO75D88SBR', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'SOS6JTFR4Q', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'FQUA1M4QIA', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'R9Q63X5PH4', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '9YQQLSMTF2', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '34KX5F4XD7', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'B4NBCIDGHH', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '3BDMC102MO', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '0Y6ZEXBV9A', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'NYTEAPCDNO', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '3EOLT70AV2', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'NNZ4CUN1LH', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '5KJTEU55H0', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '6AETM8MFC0', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'TUWAI6HT8M', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '0SUJD3Y42V', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'OV6NC1K2D1', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'I4SI25QFMM', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'DOU0OUI8AN', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'OMQM7LB5BM', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'LJQGQC7NSG', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'P15E59EY1I', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'WWKRVG1PF2', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'FG6E0CAYX0', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '6O0YHAIQ8J', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'HJG2VHFU63', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'UP1BZBP0GI', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'E3GKL4HU80', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '6BRMR0F9HD', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '3QAABUABMT', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'XJAT2DQ8OK', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'DZ20ZBY4HD', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'BJKCANXBLW', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'ZFJ69S6KG0', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'BYSW15CQP9', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'WAIB60Z7K6', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'OFITPFIEHT', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '3K427SFX29', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'HNPWYX8BXM', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'N9T7LIGRGU', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'SR2ZX7MECH', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '6NHTTN812Y', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'PU6CU9DZ78', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'XHGZF8UT9E', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'L4VYA9F3B3', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'OS68JFGHW5', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'A0W1020SXV', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'K7D4ROUG9M', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'C2V0QGRRBI', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'B8RU74C3RB', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'VDXUGUT7CM', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'PQ8HTLTYW1', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'OC7MUY5MB9', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'S8SKF6BV0P', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '27FK69ANCM', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'X373SVTRA9', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'EOXFNL6ZWN', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'CWEZYB56OA', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '4U9P3RV4OJ', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'NOQZSZ4S6U', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'P2HJUFRIJD', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'SGMXKKLVTE', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'HKNCKKYE4M', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'EC0ACY9KBJ', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'W53LS8X8ZC', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'QHKP97MDAP', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'R5DU2NJABN', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'O268FLVTVD', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'GST0BBZ4YR', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '1DOIWW82KW', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'W6EBAFRDSO', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'O53YNL8LLU', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '41D5KBC5DG', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'M3PTPE3O3I', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'DLS2N1RYU4', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'J4HWU1LNLY', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'JU7A2002QP', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '45QK4IGYOJ', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '6JFC1PBZQU', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '3KZXM3OOOR', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '009Y8K02XT', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'OX9FEQ4ZRM', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '64PP9JR4UB', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'PSG0E46RII', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'YHZUS04GCZ', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'E89K1TTUB1', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'HG6G57959E', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'IDVIWN6Z26', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'BK5K63BD1J', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'TWE3GQBT2Z', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '2J69OLP9Q9', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'HLX36E0KQ6', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'B9JRG5ZZAL', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'EFZO8NOL75', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'J4WGVW18DI', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'HET9J71BPC', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '61ZJ30RPYG', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'IWD544CSPO', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'MY22CT2ZI3', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '9VERL56NL8', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'B7A5HBX17L', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '0GV54FZUW9', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '5WMUMDZ26G', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'ICTLVXP5F9', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'S5AMKZ30US', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '9V2A8HWCRJ', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '3OT6KSI72T', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '948VCQNPHT', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '8J19ILTNUM', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'CZFDUE9LB3', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'GUXFOZNFP9', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '5S1OXMX1HM', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'HIRBXN56U9', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'UMUAJLH6HE', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'J32TQW0LMU', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'EP0GDPCFG6', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'YFQO3SU1EG', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '8V83KV618X', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'HODQRJ1VZJ', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'PGQH15TBPD', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'XDWWNPAIEP', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '1X0U26BQHD', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '0QBNR6KJLP', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'UGAYW87P62', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'BKKJO0DID4', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'EZOJDPQNEK', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '3LYLAGHG7O', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '7J99TOZXKU', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'DOX32BMU55', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'VOD54VLC1R', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'K74IB86YM0', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '7OPHPENX0X', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '3DVB93KZ8E', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'U6TLDYPU6G', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'AGIPT2Y9AR', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'P4QCGCWGR7', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'HP01EYTII3', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'QZVOE5DW2W', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'TRNG6ZKCFT', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'RKC03Z26Y1', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'E653Q0W16V', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'O4U2ENFK2M', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'L028CLKUG2', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'APPPSZUJHJ', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'PADBWR7DD7', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'UDTZVLXJX3', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'ZUA0WB9P20', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '5L3TGY54GP', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'KBOD37BC7I', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'P0KDNF0MBS', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'HW4J8SS969', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'UKWASD0DQ2', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'RX8RQK6IME', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'QCWOYORD9I', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '7PGVS8HRFW', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '4FH0J8ISYI', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '0QGMRS5IH9', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '6AR6V6FEZ1', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '176ATSLN7N', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'RRZD8S1GS6', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'CNEJKYX2RU', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '6QFZAWDAN7', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '8A96XCTSKC', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'RT4M1DQD4K', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'IT32NWFNQ5', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'GUBAE4AUBE', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '0DXQ311NC3', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '48LQ5LP2QQ', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'ZIHZU6A6XU', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'IAZX4N5X1H', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '74OA3WLBW8', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'JD105UEJSC', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '8G7PB17PVT', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'V8PUSF5AA0', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'LPJ09VTXZ0', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'LAH590IINA', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '9JOFWSI3EI', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ZQKWE0TWS5', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'TJLB514LP1', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '32X3UBGTMQ', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'H3D9K870FB', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'ZI7PFY3TPM', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'GNO374VMU5', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '6OYUBQRBEY', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'AA93J0QEVB', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'J8KYPTLGYL', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'QB4BEKJLZT', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'V1LJGZARYB', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'EFGO7Q0RC5', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ENAZA5B07A', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '2FD0I32DVI', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'WS0F77BU8H', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'FIIT5MURV0', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'AWDGNYKD92', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '1AS3398LGT', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'ZK71WD99NA', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'NVBRD2NR4I', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '7JKO5O934R', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'I80J4T6P1Z', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'KZ0SB3O2PM', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'JDICB85W48', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'BKUK2NZECR', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'WHVJ9TUOQI', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'SUVFZEWU8A', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'NXUY2K44KN', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'SHAAR203JH', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'NHW2DG13PZ', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'WWN8GVF80K', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '7JQZHEQD21', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'TO63EBZ6WL', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'TGKFEJ3EE2', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '6AIH9YSNUV', 12, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'I0IQ831BL6', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'FTY10T6316', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'HOTLZQ8T6X', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'PGKRTJRT93', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'HG07S4ZJW4', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, '02GSF1Z98F', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '28D72103H5', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'EXNDR7MVNQ', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'RQ26BOSB5X', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '9TGLN5OYP1', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '3PSR9N7KVG', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'SVU0WH3DTB', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '8L8SRWHQUA', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '5U4A9AQFN3', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'JKDKFABIE6', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'WNU9QO3W0C', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '85ZZN28T9K', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'B4QV2O3USU', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'EELIVZUBXY', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'H8KO0OMW94', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '5TGJDTUECJ', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'SNA6UR9I2W', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'R5INYFGNSL', 17, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '7NL73LQ1PQ', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'TTTA51FM3L', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'AJRTVGGTLM', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'O6NP61JZN3', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'EIICXJTW72', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'RZX7V2PZJD', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'Y0N7M9AF67', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'RJON4CQZW6', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '6B4ZECBWYD', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'SIZLB38S81', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '6AU1M6R7LG', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'RE6TST33ZF', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'E42K481XIF', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '9DMWL3TKDI', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '3322O5PWSH', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'OXGHBSKTKB', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'MPR72XM3BO', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'W6NOX7D34K', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '8RWSTLMD3O', 2, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'EQZ6VEUSMZ', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'M4013D2YXI', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'MN29K9PKRY', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'DUH4UQEF30', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'O780WEAEN7', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'XMOPIGXNT3', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '3CAID1Q3IP', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'AEVWVC7KW8', 20, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'DG5AVJYKJE', 16, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'ATGPZGVCZ2', 12, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'AXL8ZYTMFJ', 3, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '0O7JH7IHFW', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'NI2R97G0LS', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'KWI22KRV4A', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '4QE90YF0YA', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'YA8B1L5MZ8', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '9PFTSHNKLR', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'CICLAH3FEO', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'IYAP4GLP2Q', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '713QQ86KAH', 1, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'L1SRAXVZPK', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'CBEGANIHMY', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'Q2OC6I0AOF', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, '1JMN8EDQMY', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '966SWNJEEE', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'XUPHY28F37', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'ZY7C4QPA00', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '4MOQLQ5HA7', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'Q4M4C932RT', 19, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '4G3CMNN5Y5', 5, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '90LJOMWHER', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'NEJTCHCVKW', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'X1YNMSACZC', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'WCL5OGHQ9V', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'L9AMFZ8HP0', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'V5996AJZL6', 9, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'BUFVMFF46Y', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'DBX9DIBYT1', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'Q7JA20ZDIW', 19, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'FCAHW8YD9O', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'YI35ATANES', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'MB6NS7GU4P', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'CSHQ3RTO2F', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'QG8WH717NY', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '5H55L9ZM4X', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '0IVNHIPXRX', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '62DO25RQHK', 20, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'TLCKQCCJTQ', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'QK3IYHEGVO', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'JTH8NP7X0F', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'FYILJ021JF', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'EXTY1D3Z9W', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'BRZ4ZGWJ9T', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'V2DC7LLAEX', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'UCST38Z2BF', 10, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'VUKQG67WX2', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'SDYL9B3ET6', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'JCDWE1KR33', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'LHO1KYOH64', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '7U4GBXR7KR', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '7Y12MIWBR6', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'ROGPG43D9B', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'IAOX5G21AR', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'GDVCKHQYSY', 18, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'CAZA1S5FVY', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'TSEN9CIBBN', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '54HUD9XGUU', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '0YG2S3C0GM', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'GZNL6EL9TL', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'G0656E9ALD', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'EW6M6CJITX', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'FE300KYVF0', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'SAYZTD5UI7', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '0JG666H3CL', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'MKVS087HGU', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'Q3DOSJWBX5', 17, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'M1EL58IKSA', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'FQI1KTOJSK', 14, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'VDX9RMECDS', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'RM5CFVYKWN', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '8N699QV005', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'BE3ELQQXNF', 18, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '3X26VJ4G4A', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'BJDTBGH14F', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'GK8Y46GTFJ', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'Z7IB88B53W', 7, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'TPXO9ZCKOI', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '1H6F6SF8SN', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'TX3IX9KH0F', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'B0VF4SZOM7', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, '13ZS2X0A40', 9, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '9IWYAFZY1O', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'L1ZZ99YFPS', 11, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'TIJW1PJNR5', 9, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'V3Q7LXS4EL', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'RKBK8ABSDK', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'DEVIAOW5H2', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'NR4DEAQNZ4', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, '47PTY9HYDK', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'QF9ZDCT5RO', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'RFDJ1KPB8Z', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'TO8YSHAQP7', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '6STJT6S42P', 10, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '4NSSPOFM15', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '6GHI1DZE8Z', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'HCS61340RT', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, '4N0MS6MAP3', 16, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'ZFO9148W4R', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'D12U5QSQ1Q', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'XRH18I00DK', 2, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'Q5LBZB4GS2', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'RWTTHO0M9X', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'TFKDEX3PFT', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'V62XP6V878', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'GH5TPTKLKV', 21, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'NUVNMIRYA8', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'LOIJOAS8OM', 6, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '2UXYDCB964', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'W2QZM7O245', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '865RRX1NA5', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'EIGZTYIA9D', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '3QLWRGU6VE', 8, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '3E5ZSMT5P1', 15, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'MM45UJCO3P', 18, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'SP8IQVR1CX', 8, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'LRGFNY2JEG', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, 'IDRU56Z86X', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'EJYL6CASZW', 3, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, 'CI79W30J7G', 1, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'D1L8HV3ZU9', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'Q35M8D4TQT', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '9AZFMNJQL3', 4, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '4MRGI69QUA', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (2, '7Z8HFBISWR', 13, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'PCGGAQKPW6', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, '0N5TKXQOPY', 11, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '660QUMPZGD', 14, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, '97OKXGUMMA', 8, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'JXTY9HWW85', 14, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'IISFTVY78B', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (4, 'LMIC9WRO4K', 15, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'ESWXVIQGBT', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, '4XBJZGCRDG', 1, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'V9S9LAT7CF', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, 'ELE70VVBOD', 6, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'CRF5ZLLWO8', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, 'A7BFANIKC3', 5, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'B7AJC4U74C', 4, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'WQ3IJDVEQO', 21, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '4J3ATT5QD7', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, 'XIE6XBIMMQ', 20, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (8, '6HSAXDDEHH', 5, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'GCPDCBRMCI', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'CB03886WQH', 2, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'QCEK9KS4KT', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (12, 'NPS3O706WT', 3, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (15, 'VB6YBA58CA', 17, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (3, 'MR0MYNEXY3', 12, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (7, '5UBCIXV4NO', 7, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (6, 'XFDWHUM6Z6', 13, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, '8L0JZEUS97', 10, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (9, 'M848WWGFPJ', 4, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (1, 'OA53MP8SNK', 21, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (10, 'M2SB245ADW', 15, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, 'T014QES58C', 13, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (13, '4ZUQMFTWVX', 7, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'SQBBIJFGZ6', 16, '2023-02-19', 180, NULL, NULL);
+INSERT INTO product.product_instance VALUES (14, '5C40PB6Q19', 19, '2023-02-19', 360, NULL, NULL);
+INSERT INTO product.product_instance VALUES (11, 'V6JY10J2EB', 11, '2023-02-19', 720, NULL, NULL);
+INSERT INTO product.product_instance VALUES (5, '5E5LPJ0B6G', 13, '2023-02-19', 360, NULL, NULL);
 
 
 --
@@ -2323,6 +4714,64 @@ INSERT INTO product.product_specs VALUES (1, 15);
 INSERT INTO product.product_specs VALUES (1, 17);
 INSERT INTO product.product_specs VALUES (1, 31);
 INSERT INTO product.product_specs VALUES (1, 11);
+INSERT INTO product.product_specs VALUES (2, 6);
+INSERT INTO product.product_specs VALUES (2, 13);
+INSERT INTO product.product_specs VALUES (2, 15);
+INSERT INTO product.product_specs VALUES (2, 19);
+INSERT INTO product.product_specs VALUES (2, 25);
+INSERT INTO product.product_specs VALUES (3, 4);
+INSERT INTO product.product_specs VALUES (3, 36);
+INSERT INTO product.product_specs VALUES (3, 16);
+INSERT INTO product.product_specs VALUES (3, 20);
+INSERT INTO product.product_specs VALUES (3, 31);
+INSERT INTO product.product_specs VALUES (4, 7);
+INSERT INTO product.product_specs VALUES (4, 13);
+INSERT INTO product.product_specs VALUES (4, 16);
+INSERT INTO product.product_specs VALUES (4, 19);
+INSERT INTO product.product_specs VALUES (4, 31);
+INSERT INTO product.product_specs VALUES (5, 4);
+INSERT INTO product.product_specs VALUES (5, 11);
+INSERT INTO product.product_specs VALUES (5, 15);
+INSERT INTO product.product_specs VALUES (5, 19);
+INSERT INTO product.product_specs VALUES (5, 28);
+INSERT INTO product.product_specs VALUES (6, 5);
+INSERT INTO product.product_specs VALUES (6, 10);
+INSERT INTO product.product_specs VALUES (6, 15);
+INSERT INTO product.product_specs VALUES (6, 18);
+INSERT INTO product.product_specs VALUES (6, 25);
+INSERT INTO product.product_specs VALUES (7, 6);
+INSERT INTO product.product_specs VALUES (7, 9);
+INSERT INTO product.product_specs VALUES (7, 15);
+INSERT INTO product.product_specs VALUES (7, 19);
+INSERT INTO product.product_specs VALUES (7, 28);
+INSERT INTO product.product_specs VALUES (8, 5);
+INSERT INTO product.product_specs VALUES (8, 11);
+INSERT INTO product.product_specs VALUES (8, 15);
+INSERT INTO product.product_specs VALUES (8, 20);
+INSERT INTO product.product_specs VALUES (9, 6);
+INSERT INTO product.product_specs VALUES (9, 11);
+INSERT INTO product.product_specs VALUES (9, 15);
+INSERT INTO product.product_specs VALUES (9, 19);
+INSERT INTO product.product_specs VALUES (9, 31);
+INSERT INTO product.product_specs VALUES (10, 37);
+INSERT INTO product.product_specs VALUES (10, 40);
+INSERT INTO product.product_specs VALUES (11, 38);
+INSERT INTO product.product_specs VALUES (11, 41);
+INSERT INTO product.product_specs VALUES (12, 42);
+INSERT INTO product.product_specs VALUES (12, 45);
+INSERT INTO product.product_specs VALUES (12, 47);
+INSERT INTO product.product_specs VALUES (12, 49);
+INSERT INTO product.product_specs VALUES (13, 44);
+INSERT INTO product.product_specs VALUES (13, 46);
+INSERT INTO product.product_specs VALUES (13, 48);
+INSERT INTO product.product_specs VALUES (13, 50);
+INSERT INTO product.product_specs VALUES (14, 52);
+INSERT INTO product.product_specs VALUES (14, 55);
+INSERT INTO product.product_specs VALUES (14, 57);
+INSERT INTO product.product_specs VALUES (15, 53);
+INSERT INTO product.product_specs VALUES (15, 56);
+INSERT INTO product.product_specs VALUES (15, 58);
+INSERT INTO product.product_specs VALUES (8, 31);
 
 
 --
@@ -2330,6 +4779,20 @@ INSERT INTO product.product_specs VALUES (1, 11);
 --
 
 INSERT INTO product.products VALUES (1, 'Dell', 'Inspiron 3593', 'Laptop', 21790000, NULL, NULL);
+INSERT INTO product.products VALUES (2, 'Dell', 'Vostro 3520', 'Laptop', 13490000, NULL, NULL);
+INSERT INTO product.products VALUES (4, 'Dell', 'Inspiron 5620', 'Laptop', 27990000, NULL, NULL);
+INSERT INTO product.products VALUES (5, 'Dell', 'Vostro 5320', 'Laptop', 19990000, NULL, NULL);
+INSERT INTO product.products VALUES (6, 'Acer', 'Aspire A315', 'Laptop', 11990000, NULL, NULL);
+INSERT INTO product.products VALUES (7, 'Acer', 'Swift F314', 'Laptop', 20990000, NULL, NULL);
+INSERT INTO product.products VALUES (8, 'HP', 'Pavillion 1456', 'Laptop', 16990000, NULL, NULL);
+INSERT INTO product.products VALUES (9, 'HP', 'Envy 1536', 'Laptop', 21990000, NULL, NULL);
+INSERT INTO product.products VALUES (10, 'Asus', 'VA24DQLB', 'Monitor', 4490000, NULL, NULL);
+INSERT INTO product.products VALUES (11, 'Samsung', 'LS2580', 'Monitor', 9150000, NULL, NULL);
+INSERT INTO product.products VALUES (12, 'AKKO', 'ACR 68', 'Keyboard', 2550000, NULL, NULL);
+INSERT INTO product.products VALUES (13, 'Royal Kludge', 'RK A30', 'Keyboard', 1090000, NULL, NULL);
+INSERT INTO product.products VALUES (14, 'Razer', 'Deathadder', 'Mouse', 500000, NULL, NULL);
+INSERT INTO product.products VALUES (15, 'Logitech', 'G1106', 'Mouse', 950000, NULL, NULL);
+INSERT INTO product.products VALUES (3, 'Dell', 'XPS 13', 'Laptop', 57990000, NULL, 'Laptop with 8GB RAM, 512GB SSD, 15.6 inch screen, Intel Core i7-8565U, 4 cores, 8 threads, 1.8GHz base frequency, up to 4.6GHz with Turbo Boost, 8MB cache, Intel UHD Graphics 620, Windows 10 Home, 1 year warranty');
 
 
 --
@@ -2367,6 +4830,20 @@ SELECT pg_catalog.setval('employee.employees_employee_id_seq', 449, true);
 
 
 --
+-- Name: cart_cart_item_id_seq; Type: SEQUENCE SET; Schema: order; Owner: postgres
+--
+
+SELECT pg_catalog.setval('"order".cart_cart_item_id_seq', 2, true);
+
+
+--
+-- Name: discount_discount_id_seq; Type: SEQUENCE SET; Schema: order; Owner: postgres
+--
+
+SELECT pg_catalog.setval('"order".discount_discount_id_seq', 1, false);
+
+
+--
 -- Name: orders_order_id_seq; Type: SEQUENCE SET; Schema: order; Owner: postgres
 --
 
@@ -2377,21 +4854,21 @@ SELECT pg_catalog.setval('"order".orders_order_id_seq', 1, false);
 -- Name: general_specs_spec_id_seq; Type: SEQUENCE SET; Schema: product; Owner: postgres
 --
 
-SELECT pg_catalog.setval('product.general_specs_spec_id_seq', 35, true);
+SELECT pg_catalog.setval('product.general_specs_spec_id_seq', 58, true);
 
 
 --
 -- Name: products_prod_id_seq; Type: SEQUENCE SET; Schema: product; Owner: postgres
 --
 
-SELECT pg_catalog.setval('product.products_prod_id_seq', 1, true);
+SELECT pg_catalog.setval('product.products_prod_id_seq', 2, true);
 
 
 --
 -- Name: storebranch_branch_id_seq; Type: SEQUENCE SET; Schema: store; Owner: postgres
 --
 
-SELECT pg_catalog.setval('store.storebranch_branch_id_seq', 21, true);
+SELECT pg_catalog.setval('store.storebranch_branch_id_seq', 26, true);
 
 
 --
@@ -2448,6 +4925,22 @@ ALTER TABLE ONLY employee.employees
 
 ALTER TABLE ONLY employee.roles
     ADD CONSTRAINT roles_pk2 PRIMARY KEY (role_name);
+
+
+--
+-- Name: cart cart_pk; Type: CONSTRAINT; Schema: order; Owner: postgres
+--
+
+ALTER TABLE ONLY "order".cart
+    ADD CONSTRAINT cart_pk PRIMARY KEY (cart_item_id);
+
+
+--
+-- Name: discount discount_pk; Type: CONSTRAINT; Schema: order; Owner: postgres
+--
+
+ALTER TABLE ONLY "order".discount
+    ADD CONSTRAINT discount_pk PRIMARY KEY (discount_id);
 
 
 --
@@ -2555,18 +5048,24 @@ ALTER TABLE ONLY store.store_branch
 
 
 --
--- Name: store_branch storebranch_pk4; Type: CONSTRAINT; Schema: store; Owner: postgres
---
-
-ALTER TABLE ONLY store.store_branch
-    ADD CONSTRAINT storebranch_pk4 UNIQUE (address);
-
-
---
 -- Name: employees encrypt_new_password; Type: TRIGGER; Schema: employee; Owner: postgres
 --
 
 CREATE TRIGGER encrypt_new_password AFTER INSERT OR UPDATE OF password ON employee.employees FOR EACH ROW WHEN ((pg_trigger_depth() < 1)) EXECUTE FUNCTION employee.encrypt_password();
+
+
+--
+-- Name: product_specs check_new_product_spec_type; Type: TRIGGER; Schema: product; Owner: postgres
+--
+
+CREATE TRIGGER check_new_product_spec_type BEFORE INSERT OR UPDATE ON product.product_specs FOR EACH ROW EXECUTE FUNCTION product.check_new_product_spec_type();
+
+
+--
+-- Name: store_branch check_new_store_branch_address; Type: TRIGGER; Schema: store; Owner: postgres
+--
+
+CREATE TRIGGER check_new_store_branch_address BEFORE INSERT OR UPDATE ON store.store_branch FOR EACH ROW EXECUTE FUNCTION store.check_new_store_branch_address();
 
 
 --
@@ -2583,6 +5082,30 @@ ALTER TABLE ONLY employee.employees
 
 ALTER TABLE ONLY employee.employees
     ADD CONSTRAINT employees_roles_role_name_fk FOREIGN KEY (role) REFERENCES employee.roles(role_name);
+
+
+--
+-- Name: cart cart_customers_phone_fk; Type: FK CONSTRAINT; Schema: order; Owner: postgres
+--
+
+ALTER TABLE ONLY "order".cart
+    ADD CONSTRAINT cart_customers_phone_fk FOREIGN KEY (customer_phone) REFERENCES customer.customers(phone);
+
+
+--
+-- Name: cart cart_products_prod_id_fk; Type: FK CONSTRAINT; Schema: order; Owner: postgres
+--
+
+ALTER TABLE ONLY "order".cart
+    ADD CONSTRAINT cart_products_prod_id_fk FOREIGN KEY (prod_id) REFERENCES product.products(prod_id);
+
+
+--
+-- Name: discount discount_products_prod_id_fk; Type: FK CONSTRAINT; Schema: order; Owner: postgres
+--
+
+ALTER TABLE ONLY "order".discount
+    ADD CONSTRAINT discount_products_prod_id_fk FOREIGN KEY (apply_for) REFERENCES product.products(prod_id);
 
 
 --
@@ -2702,6 +5225,20 @@ ALTER TABLE ONLY store.store_branch
 --
 
 COMMENT ON CONSTRAINT storebranch_employees_employee_id_fk ON store.store_branch IS 'The manager who manages the branch';
+
+
+--
+-- Name: all_products_info; Type: MATERIALIZED VIEW DATA; Schema: product; Owner: postgres
+--
+
+REFRESH MATERIALIZED VIEW product.all_products_info;
+
+
+--
+-- Name: products_quantity; Type: MATERIALIZED VIEW DATA; Schema: product; Owner: postgres
+--
+
+REFRESH MATERIALIZED VIEW product.products_quantity;
 
 
 --
