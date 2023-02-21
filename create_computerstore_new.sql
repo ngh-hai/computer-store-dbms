@@ -446,6 +446,8 @@ CREATE PROCEDURE "order".insert_offline_order(IN new_cart_item_id integer[], IN 
             loop
                 execute 'delete from "order".cart where cart_item_id = ' || new_cart_item_id[i];
             end loop;
+            -- refresh the "order".order_details view
+            execute 'refresh materialized view "order".order_details';
             -- raise a notice if the procedure is successfully executed
             raise notice 'Offline order is successfully inserted.';
             -- if the customer is a new customer, raise a notice to ask for the customer's name and address
@@ -576,6 +578,8 @@ CREATE PROCEDURE "order".insert_online_order(IN new_cart_item_id integer[], IN n
             loop
                 execute 'delete from "order".cart where cart_item_id = ' || new_cart_item_id[i];
             end loop;
+            -- refresh the "order".order_details view
+            execute 'refresh materialized view "order".order_details';
             -- raise a notice if the procedure is successfully executed
             raise notice 'Online order is successfully inserted.';
             -- if the customer is a new customer, raise a notice to ask for the customer's name and address
