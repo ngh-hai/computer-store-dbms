@@ -220,7 +220,7 @@ CREATE FUNCTION employee.login(user_name character varying, pass_word character 
     begin
         select employee_id
         into id
-        from employees
+        from employee.employees
         where username = user_name
         and password = employee.crypt(pass_word,password)
         and active;
@@ -2593,6 +2593,7 @@ INSERT INTO customer.customers VALUES ('Trinh Ngoc Thanh', '806 Luong Van Can', 
 INSERT INTO customer.customers VALUES ('Quach Chi Minh', '421 Quan Thanh', 'Cam Le', 'Vinh', 'minh.qc58@gmail.com', 7778406022);
 INSERT INTO customer.customers VALUES ('Huynh Khanh Anh', '892 Xuan Thuy', 'Le Chan', 'Kon Tum', 'anh.hk24@gmail.com', 2791767081);
 INSERT INTO customer.customers VALUES ('Bui Thanh Tien', '398 Hang Can', 'Le Chan', 'Nha Trang', 'tien.bt871@gmail.com', 4804407207);
+INSERT INTO customer.customers VALUES ('Kien', '', '', '', '', 986123456);
 
 
 --
@@ -5567,6 +5568,13 @@ CREATE INDEX product_specs_prod_id_idx ON product.product_specs USING hash (prod
 --
 
 CREATE INDEX product_specs_spec_id_idx ON product.product_specs USING hash (spec_id);
+
+
+--
+-- Name: products_prod_brand_name_idx; Type: INDEX; Schema: product; Owner: postgres
+--
+
+CREATE INDEX products_prod_brand_name_idx ON product.products USING hash (prod_brand_name);
 
 
 --
