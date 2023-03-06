@@ -102,4 +102,39 @@ call product.add_spec_to_product(35,87);
 call product.add_spec_to_product(35,91);
 
 
-
+--------------------------------------------------
+call product.add_new_brands('BPhone');
+call product.add_new_brands('Tesla');
+call product.add_new_brands('IBM');
+call product.add_new_brands('Toshiba');
+call product.add_new_brands('Panasonic');
+call product.add_new_brands('Foxcon');
+call product.add_new_brands('Hewlett-Packard');
+call product.add_new_brands('Xerox');
+call product.add_new_brands('ZTE');
+call product.add_new_brands('Nokia');
+call product.add_new_brands('Motorolla');
+call product.add_new_brands('HTC');
+call product.add_new_brands('Filco');
+call product.add_new_brands('Keychron');
+call product.add_new_brands('Corsair');
+call product.add_new_brands('Steelseries');
+call product.add_new_brands('HyperX');
+call product.add_new_brands('Nvidia');
+call product.add_new_brands('EVGA');
+call product.add_new_brands('Thermaltake');
+call product.add_new_brands('Antec');
+call product.add_new_brands('NZXT');
+call product.add_new_brands('Phanteks');
+call product.add_new_brands('LianLi');
+call product.add_new_brands('Silverstone');
+call product.add_new_brands('InWin');
+call product.add_new_brands('Deepcool');
+call product.add_new_brands('Noctua');
+call product.add_new_brands('Scythe');
+call product.add_new_brands('Raijintek');
+call product.add_new_brands('Arctic');
+call product.add_new_brands('Enermax');
+call product.add_new_brands('FSP');
+call product.add_new_brands('Seasonic');
+call product.add_new_brands('XFX');
